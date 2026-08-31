@@ -3,6 +3,12 @@ import { dirname, extname, join, resolve } from 'node:path';
 
 const root = process.cwd();
 const failures = [];
+const ignoredDirectories = new Set([
+  '.git',
+  'node_modules',
+  'playwright-report',
+  'test-results',
+]);
 
 function fail(message) {
   failures.push(message);
@@ -12,10 +18,7 @@ function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === 'playwright-report' || entry.name === 'test-results') {
-        return [];
-      }
-      return walk(path);
+      return ignoredDirectories.has(entry.name) ? [] : walk(path);
     }
     return extname(entry.name) === '.md' ? [path] : [];
   });
@@ -93,4 +96,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Documentation contract passed: local links, toolchain claims, gate names, and directory-only repository map are consistent.');
+console.log(
+  'Documentation contract passed: local links, toolchain claims, gate names, and directory-only repository map are consistent.',
+);
