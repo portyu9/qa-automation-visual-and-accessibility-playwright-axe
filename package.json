@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:smoke": "playwright test tests/smoke",
-    "test:accessibility": "playwright test tests/accessibility tests/integration --project=chromium",
+    "test:accessibility": "playwright test tests/accessibility --project=chromium",
     "test:visual": "playwright test tests/visual tests/integration --project=chromium --project=mobile-chromium",
     "visual:update": "playwright test tests/visual tests/integration --project=chromium --project=mobile-chromium --update-snapshots",
     "report": "playwright show-report",
