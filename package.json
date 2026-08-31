@@ -9,11 +9,12 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "check": "npm run format:check && npm run lint && npm run typecheck",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run docs:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
+    "docs:check": "node scripts/validate-docs.mjs",
     "test": "playwright test",
     "test:framework": "playwright test tests/framework --project=chromium",
     "test:smoke": "playwright test tests/smoke",
