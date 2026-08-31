@@ -6,16 +6,16 @@ The repository includes a deterministic local application so framework health ne
 
 ## Quality model
 
-| Validation plane    | What it proves                                                                             | Primary evidence                                       |
-| ------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| Framework contracts | Runtime configuration fails early and helpers retain their policy contracts                | Validated Playwright JUnit + HTML report               |
-| Accessibility rules | Automated WCAG A/AA defects are detected and the harness fails known violations            | axe JSON/Markdown attachments + JUnit                  |
-| Keyboard/focus      | Navigation, tabs, dialog focus, skip links, and validation focus remain operable           | Playwright assertions                                  |
-| Visual regression   | Governed desktop/mobile Chromium states remain within explicit image thresholds            | Expected/actual/diff images + HTML report              |
-| Cross-browser smoke | Critical navigation works in Chromium, Firefox, and WebKit                                 | Per-engine validated JUnit + HTML report               |
-| Static quality      | Formatting, linting, and TypeScript contracts remain clean                                 | Prettier, ESLint, TypeScript exit status               |
-| Supply chain        | Source, dependency, configuration, secret, and dependency-diff risk is gated independently | CodeQL, npm audit JSON, Trivy JSON, Dependency Review  |
-| Baseline provenance | Canonical screenshots are generated and self-verified in controlled Linux CI               | SHA-associated baseline artifact + verification report |
+| Validation plane    | What it proves                                                                             | Primary evidence                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Framework contracts | Runtime configuration fails early and helpers retain their policy contracts                | Validated Playwright JUnit + HTML report                            |
+| Accessibility rules | Automated WCAG A/AA defects are detected and the harness fails known violations            | axe JSON/Markdown attachments + JUnit                               |
+| Keyboard/focus      | Navigation, tabs, dialog focus, skip links, and validation focus remain operable           | Playwright assertions                                               |
+| Visual regression   | Governed desktop/mobile Chromium states remain within explicit image thresholds            | Expected/actual/diff images + HTML report                           |
+| Cross-browser smoke | Critical navigation works in Chromium, Firefox, and WebKit                                 | Per-engine validated JUnit + HTML report                            |
+| Static quality      | Code, documentation, and workflow dependency contracts remain clean                        | Prettier, ESLint, TypeScript, docs, and immutable-action pin checks |
+| Supply chain        | Source, dependency, configuration, secret, and dependency-diff risk is gated independently | CodeQL, npm audit JSON, Trivy JSON, Dependency Review               |
+| Baseline provenance | Canonical screenshots are generated and self-verified in controlled Linux CI               | SHA-associated baseline artifact + verification report              |
 
 Automated accessibility analysis is **not** represented as WCAG certification. Screen-reader usability, content meaning, cognitive accessibility, meaningful focus order, zoom/reflow judgment, and other context-dependent criteria still require human review. See [the manual accessibility checklist](docs/manual-accessibility-checklist.md).
 
@@ -50,7 +50,7 @@ The default Playwright configuration starts the deterministic local application 
 
 | Command                      | Purpose                                                                 |
 | ---------------------------- | ----------------------------------------------------------------------- |
-| `npm run check`              | Prettier, ESLint, and TypeScript static gate                            |
+| `npm run check`              | Formatting, lint, types, docs, and immutable workflow-pin static gates  |
 | `npm run test:framework`     | Runtime/helper contract tests without browser-specific product behavior |
 | `npm run test:smoke`         | Cross-browser smoke suite                                               |
 | `npm run test:accessibility` | Chromium axe + keyboard/state accessibility suite                       |
@@ -104,7 +104,7 @@ This separates **review evidence** from **source code** and prevents a PR from r
 
 `CI` has four independent execution planes and a stable aggregator:
 
-- `quality` — exact npm qualification, script-disabled install, static checks, browser-independent framework contracts, semantic evidence validation, and HIGH/CRITICAL npm advisory gating;
+- `quality` — exact npm qualification, script-disabled install, static/documentation/workflow-pin checks, browser-independent framework contracts, semantic evidence validation, and HIGH/CRITICAL npm advisory gating;
 - `accessibility` — Chromium accessibility/state suite plus semantic JUnit/HTML validation;
 - `smoke` — Chromium/Firefox/WebKit matrix with per-engine semantic evidence validation and retained reports;
 - `visual` — exact-base baseline retrieval, comparison, intentional-change governance, candidate verification, and retained comparison evidence;
