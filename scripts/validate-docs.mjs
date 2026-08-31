@@ -63,6 +63,25 @@ if (!repositoryMap) {
   }
 }
 
+const requiredWorkflowBadges = [
+  ['CI', 'ci.yml'],
+  ['Security', 'security.yml'],
+  ['Visual Baseline', 'visual-baseline.yml'],
+];
+for (const [label, workflow] of requiredWorkflowBadges) {
+  const badgeFragment = `actions/workflows/${workflow}/badge.svg`;
+  if (!readme.includes(badgeFragment)) {
+    fail(`README.md: ${label} workflow badge is missing (${workflow})`);
+  }
+}
+
+const mermaidBlocks = [...readme.matchAll(/```mermaid\s*\n([\s\S]*?)```/gu)];
+if (mermaidBlocks.length === 0) {
+  fail('README.md: Mermaid architecture diagram is missing');
+} else if (!mermaidBlocks.some((match) => /^flowchart\s+/mu.test(match[1] ?? ''))) {
+  fail('README.md: Mermaid documentation must include a flowchart architecture diagram');
+}
+
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const nodeVersion = readFileSync(join(root, '.nvmrc'), 'utf8').trim();
 const npmVersion = String(packageJson.packageManager ?? '').replace(/^npm@/u, '');
@@ -94,5 +113,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  'Documentation contract passed: local links, toolchain claims, gate names, and directory-only repository map are consistent.',
+  'Documentation contract passed: local links, workflow badges, Mermaid architecture, toolchain claims, gate names, and directory-only repository map are consistent.',
 );
