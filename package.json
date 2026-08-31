@@ -11,7 +11,7 @@
   "scripts": {
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run docs:check",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --check . || (prettier --write . && git diff -- README.md scripts/validate-docs.mjs scripts/validate-playwright-evidence.mjs tests/framework/config.contract.spec.ts && exit 1)",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "docs:check": "node scripts/validate-docs.mjs",
