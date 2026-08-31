@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Deterministic quality engineering test surface" />
+    <title>Quality Console</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="/" aria-label="Quality Console home">
+          <span class="brand-mark" aria-hidden="true">Q</span>
+          <span>Quality Console</span>
+        </a>
+        <nav aria-label="Primary">
+          <ul class="nav-list">
+            <li><a aria-current="page" href="/">Overview</a></li>
+            <li><a href="/components.html">Components</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section class="hero shell">
+        <div class="hero-copy">
+          <p class="eyebrow">Release confidence</p>
+          <h1 id="hero-title">Visual stability and accessibility in one quality gate.</h1>
+          <p class="lede">
+            A deterministic surface for exercising screenshot comparison, semantic assertions,
+            keyboard behavior, and automated WCAG checks.
+          </p>
+          <div class="button-row">
+            <a class="button button-primary" href="/components.html">Explore components</a>
+            <a class="button button-secondary" href="#principles">Review principles</a>
+          </div>
+        </div>
+        <aside class="status-card" aria-labelledby="status-title">
+          <div class="status-heading">
+            <h2 id="status-title">Quality signal</h2>
+            <span class="pill pill-success">Ready</span>
+          </div>
+          <dl class="metric-list">
+            <div>
+              <dt>Accessibility target</dt>
+              <dd>WCAG 2.x AA</dd>
+            </div>
+            <div>
+              <dt>Visual viewport</dt>
+              <dd>Desktop + mobile</dd>
+            </div>
+            <div>
+              <dt>Last rendered</dt>
+              <dd data-visual-dynamic>runtime value</dd>
+            </div>
+          </dl>
+        </aside>
+      </section>
+
+      <section class="section shell" id="principles" aria-labelledby="principles-title">
+        <div class="section-heading">
+          <p class="eyebrow">Guardrails</p>
+          <h2 id="principles-title">What the framework protects</h2>
+          <p>
+            Each layer catches a different class of regression; none is treated as a substitute for
+            another.
+          </p>
+        </div>
+        <div class="card-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">A</span>
+            <h3>Accessible semantics</h3>
+            <p>
+              Automated axe scans, role-first locators, focus behavior, and explicit manual review
+              boundaries.
+            </p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">V</span>
+            <h3>Visual contracts</h3>
+            <p>
+              Stable screenshot assertions with governed baselines and intentional handling of
+              dynamic content.
+            </p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">C</span>
+            <h3>CI evidence</h3>
+            <p>
+              Reports, traces, screenshots, and machine-readable results are retained when a gate
+              fails.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section-muted" aria-labelledby="workflow-title">
+        <div class="shell split-panel">
+          <div>
+            <p class="eyebrow">Workflow</p>
+            <h2 id="workflow-title">A regression must be explainable.</h2>
+          </div>
+          <ol class="step-list">
+            <li>
+              <span>01</span><strong>Stabilize</strong>
+              <p>Control viewport, motion, locale, timezone, fonts, and dynamic regions.</p>
+            </li>
+            <li>
+              <span>02</span><strong>Inspect</strong>
+              <p>Run semantics, keyboard, focus, and axe checks in the intended UI state.</p>
+            </li>
+            <li>
+              <span>03</span><strong>Compare</strong>
+              <p>Diff screenshots against the baseline produced from the PR base commit.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <p>Deterministic test application for quality engineering exercises.</p>
+        <a href="/components.html">Component laboratory</a>
+      </div>
+    </footer>
+  </body>
+</html>

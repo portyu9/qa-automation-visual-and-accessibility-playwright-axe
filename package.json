@@ -1,0 +1,35 @@
+{
+  "name": "qa-automation-visual-and-accessibility-playwright-axe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-oriented Playwright framework for visual regression and accessibility testing with axe-core.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "packageManager": "npm@11.19.0",
+  "scripts": {
+    "check": "npm run format:check && npm run lint && npm run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:smoke": "playwright test tests/smoke",
+    "test:accessibility": "playwright test tests/accessibility --project=chromium",
+    "test:visual": "playwright test tests/visual tests/integration --project=chromium --project=mobile-chromium",
+    "visual:update": "playwright test tests/visual tests/integration --project=chromium --project=mobile-chromium --update-snapshots",
+    "report": "playwright show-report",
+    "test:debug": "playwright test --debug"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.4.0",
+    "eslint": "10.9.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.68.0"
+  }
+}
