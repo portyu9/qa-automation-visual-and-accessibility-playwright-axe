@@ -1,13 +1,25 @@
 import { defineConfig, devices } from '@playwright/test';
 import { runtimeConfig } from './framework/config.js';
 
+const ciExecution = runtimeConfig.ci ? { workers: 2 } : {};
+const localServer = process.env.BASE_URL
+  ? {}
+  : {
+      webServer: {
+        command: 'node scripts/test-site-server.mjs',
+        url: `${runtimeConfig.baseURL}/healthz`,
+        reuseExistingServer: !runtimeConfig.ci,
+        timeout: 15_000,
+      },
+    };
+
 export default defineConfig({
   testDir: './tests',
   outputDir: './test-results',
   fullyParallel: true,
   forbidOnly: runtimeConfig.ci,
   retries: runtimeConfig.ci ? 1 : 0,
-  workers: runtimeConfig.ci ? 2 : undefined,
+  ...ciExecution,
   timeout: 30_000,
   expect: {
     timeout: 5_000,
@@ -58,12 +70,5 @@ export default defineConfig({
       use: { ...devices['Pixel 7'] },
     },
   ],
-  webServer: process.env.BASE_URL
-    ? undefined
-    : {
-        command: 'node scripts/test-site-server.mjs',
-        url: `${runtimeConfig.baseURL}/healthz`,
-        reuseExistingServer: !runtimeConfig.ci,
-        timeout: 15_000,
-      },
+  ...localServer,
 });
