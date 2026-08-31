@@ -26,7 +26,7 @@ A route-level scan can miss defects introduced only after interaction. Prefer sc
 - disabled/loading states;
 - responsive variants where DOM or semantics differ.
 
-The combined-quality tests demonstrate running visual and accessibility checks against the same interaction state.
+The combined-quality tests demonstrate running visual and accessibility checks against the same interaction state. Those tests belong to the visual gate because their screenshot assertion requires a canonical baseline; the accessibility-only gate remains independent of baseline availability.
 
 ## Keyboard and focus
 
@@ -55,9 +55,9 @@ The framework validates these fields and throws when the date is invalid or expi
 Example:
 
 ```ts
-await a11y.assertNoViolations({
+const results = await a11y.scan({
   name: 'legacy account picker',
-  exclude: [
+  exclusions: [
     {
       selector: '[data-legacy-account-picker]',
       reason: 'Third-party control awaiting accessible replacement',
@@ -66,6 +66,8 @@ await a11y.assertNoViolations({
     },
   ],
 });
+
+a11y.assertNoViolations(results);
 ```
 
 Do not exclude an entire page to suppress a single component. Do not extend expiry dates without a fresh remediation decision.
