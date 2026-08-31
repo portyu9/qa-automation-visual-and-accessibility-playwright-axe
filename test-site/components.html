@@ -29,28 +29,66 @@
       <header class="page-heading">
         <p class="eyebrow">Component laboratory</p>
         <h1>Stateful UI quality checks</h1>
-        <p class="lede">The examples below expose keyboard, focus, validation, dialog, and screenshot states.</p>
+        <p class="lede">
+          The examples below expose keyboard, focus, validation, dialog, and screenshot states.
+        </p>
       </header>
 
       <section class="lab-card" aria-labelledby="tabs-title">
         <div class="lab-heading">
-          <div><p class="eyebrow">Keyboard pattern</p><h2 id="tabs-title">Release channels</h2></div>
+          <div>
+            <p class="eyebrow">Keyboard pattern</p>
+            <h2 id="tabs-title">Release channels</h2>
+          </div>
           <span class="pill">Interactive</span>
         </div>
         <div class="tabs" data-tabs>
           <div role="tablist" aria-label="Release channels">
-            <button id="tab-stable" role="tab" aria-selected="true" aria-controls="panel-stable">Stable</button>
-            <button id="tab-preview" role="tab" aria-selected="false" aria-controls="panel-preview" tabindex="-1">Preview</button>
-            <button id="tab-legacy" role="tab" aria-selected="false" aria-controls="panel-legacy" tabindex="-1">Legacy</button>
+            <button id="tab-stable" role="tab" aria-selected="true" aria-controls="panel-stable">
+              Stable
+            </button>
+            <button
+              id="tab-preview"
+              role="tab"
+              aria-selected="false"
+              aria-controls="panel-preview"
+              tabindex="-1"
+            >
+              Preview
+            </button>
+            <button
+              id="tab-legacy"
+              role="tab"
+              aria-selected="false"
+              aria-controls="panel-legacy"
+              tabindex="-1"
+            >
+              Legacy
+            </button>
           </div>
           <section id="panel-stable" role="tabpanel" aria-labelledby="tab-stable" tabindex="0">
-            <h3>Stable channel</h3><p>Validated for release-critical visual and accessibility checks.</p>
+            <h3>Stable channel</h3>
+            <p>Validated for release-critical visual and accessibility checks.</p>
           </section>
-          <section id="panel-preview" role="tabpanel" aria-labelledby="tab-preview" tabindex="0" hidden>
-            <h3>Preview channel</h3><p>Used to evaluate changes before they become the canonical baseline.</p>
+          <section
+            id="panel-preview"
+            role="tabpanel"
+            aria-labelledby="tab-preview"
+            tabindex="0"
+            hidden
+          >
+            <h3>Preview channel</h3>
+            <p>Used to evaluate changes before they become the canonical baseline.</p>
           </section>
-          <section id="panel-legacy" role="tabpanel" aria-labelledby="tab-legacy" tabindex="0" hidden>
-            <h3>Legacy channel</h3><p>Retained only for compatibility investigations and migration planning.</p>
+          <section
+            id="panel-legacy"
+            role="tabpanel"
+            aria-labelledby="tab-legacy"
+            tabindex="0"
+            hidden
+          >
+            <h3>Legacy channel</h3>
+            <p>Retained only for compatibility investigations and migration planning.</p>
           </section>
         </div>
       </section>
@@ -60,7 +98,9 @@
           <p class="eyebrow">Focus management</p>
           <h2 id="dialog-title">Confirmation dialog</h2>
           <p>Native dialog behavior keeps focus contained while the modal is open.</p>
-          <button class="button button-primary" type="button" data-open-dialog>Open confirmation</button>
+          <button class="button button-primary" type="button" data-open-dialog>
+            Open confirmation
+          </button>
         </article>
 
         <article class="lab-card" aria-labelledby="form-title">
@@ -69,7 +109,12 @@
           <form data-request-form novalidate>
             <div class="field">
               <label for="request-title">Request title</label>
-              <input id="request-title" name="title" autocomplete="off" aria-describedby="request-title-hint" />
+              <input
+                id="request-title"
+                name="title"
+                autocomplete="off"
+                aria-describedby="request-title-hint"
+              />
               <p id="request-title-hint" class="hint">Use at least three characters.</p>
             </div>
             <div class="field">
@@ -88,13 +133,23 @@
       </section>
     </main>
 
-    <dialog class="dialog" data-confirm-dialog aria-labelledby="confirm-title" aria-describedby="confirm-copy">
+    <dialog
+      class="dialog"
+      data-confirm-dialog
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-copy"
+    >
       <div class="dialog-inner">
         <p class="eyebrow">Confirm action</p>
         <h2 id="confirm-title">Promote this baseline?</h2>
-        <p id="confirm-copy">Baseline changes should be reviewed as intentional product changes, not accepted reflexively.</p>
+        <p id="confirm-copy">
+          Baseline changes should be reviewed as intentional product changes, not accepted
+          reflexively.
+        </p>
         <div class="button-row">
-          <button class="button button-primary" type="button" data-confirm autofocus>Confirm</button>
+          <button class="button button-primary" type="button" data-confirm autofocus>
+            Confirm
+          </button>
           <button class="button button-secondary" type="button" data-close-dialog>Cancel</button>
         </div>
       </div>

@@ -92,4 +92,4 @@ Production consumers can add product-specific abstractions without changing the 
 - WCAG exclusion registries tied to an issue system;
 - external reporting integrations.
 
-The framework layer should remain application-agnostic. It defines *how quality is measured*; tests define *which product behavior matters*.
+The framework layer should remain application-agnostic. It defines _how quality is measured_; tests define _which product behavior matters_.

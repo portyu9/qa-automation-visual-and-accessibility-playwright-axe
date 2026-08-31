@@ -26,8 +26,7 @@ export default defineConfig({
         ['junit', { outputFile: 'test-results/junit.xml' }],
       ]
     : [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
-  snapshotPathTemplate:
-    '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
+  snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
   use: {
     baseURL: runtimeConfig.baseURL,
     locale: 'en-US',

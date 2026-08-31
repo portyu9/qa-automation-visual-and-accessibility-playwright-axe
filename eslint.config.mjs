@@ -30,10 +30,7 @@ export default tseslint.config(
         'error',
         { checksVoidReturn: { arguments: false } },
       ],
-      '@typescript-eslint/restrict-template-expressions': [
-        'error',
-        { allowNumber: true },
-      ],
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
     },
   },
   {

@@ -65,23 +65,35 @@
         <div class="section-heading">
           <p class="eyebrow">Guardrails</p>
           <h2 id="principles-title">What the framework protects</h2>
-          <p>Each layer catches a different class of regression; none is treated as a substitute for another.</p>
+          <p>
+            Each layer catches a different class of regression; none is treated as a substitute for
+            another.
+          </p>
         </div>
         <div class="card-grid">
           <article class="feature-card">
             <span class="feature-icon" aria-hidden="true">A</span>
             <h3>Accessible semantics</h3>
-            <p>Automated axe scans, role-first locators, focus behavior, and explicit manual review boundaries.</p>
+            <p>
+              Automated axe scans, role-first locators, focus behavior, and explicit manual review
+              boundaries.
+            </p>
           </article>
           <article class="feature-card">
             <span class="feature-icon" aria-hidden="true">V</span>
             <h3>Visual contracts</h3>
-            <p>Stable screenshot assertions with governed baselines and intentional handling of dynamic content.</p>
+            <p>
+              Stable screenshot assertions with governed baselines and intentional handling of
+              dynamic content.
+            </p>
           </article>
           <article class="feature-card">
             <span class="feature-icon" aria-hidden="true">C</span>
             <h3>CI evidence</h3>
-            <p>Reports, traces, screenshots, and machine-readable results are retained when a gate fails.</p>
+            <p>
+              Reports, traces, screenshots, and machine-readable results are retained when a gate
+              fails.
+            </p>
           </article>
         </div>
       </section>
@@ -93,9 +105,18 @@
             <h2 id="workflow-title">A regression must be explainable.</h2>
           </div>
           <ol class="step-list">
-            <li><span>01</span><strong>Stabilize</strong><p>Control viewport, motion, locale, timezone, fonts, and dynamic regions.</p></li>
-            <li><span>02</span><strong>Inspect</strong><p>Run semantics, keyboard, focus, and axe checks in the intended UI state.</p></li>
-            <li><span>03</span><strong>Compare</strong><p>Diff screenshots against the baseline produced from the PR base commit.</p></li>
+            <li>
+              <span>01</span><strong>Stabilize</strong>
+              <p>Control viewport, motion, locale, timezone, fonts, and dynamic regions.</p>
+            </li>
+            <li>
+              <span>02</span><strong>Inspect</strong>
+              <p>Run semantics, keyboard, focus, and axe checks in the intended UI state.</p>
+            </li>
+            <li>
+              <span>03</span><strong>Compare</strong>
+              <p>Diff screenshots against the baseline produced from the PR base commit.</p>
+            </li>
           </ol>
         </div>
       </section>

@@ -6,16 +6,16 @@ The repository includes a deterministic reference application so the framework c
 
 ## Quality model
 
-| Layer | What it detects | Primary implementation |
-| --- | --- | --- |
-| Accessibility rules | WCAG A/AA issues detectable by automation | axe-core scans across pages and interactive states |
-| Keyboard/focus | Operability, focus movement, skip navigation, dialog/form behavior | Playwright keyboard and focus assertions |
-| Visual regression | Layout, typography, spacing, styling, clipping, responsive changes | Playwright `toHaveScreenshot` |
-| Component states | Dialogs, validation errors, tab panels, focused/selected states | State-specific a11y + visual tests |
-| Cross-browser smoke | Basic behavior across Chromium, Firefox, and WebKit | Playwright project matrix |
-| Harness contract | Proof that the accessibility gate fails known defects | Intentionally invalid local fixture |
-| Static quality | Formatting, linting, and TypeScript correctness | Prettier, ESLint, TypeScript |
-| Supply chain | Vulnerable dependency changes and source-code security findings | Dependabot, dependency review, CodeQL, npm audit |
+| Layer               | What it detects                                                    | Primary implementation                             |
+| ------------------- | ------------------------------------------------------------------ | -------------------------------------------------- |
+| Accessibility rules | WCAG A/AA issues detectable by automation                          | axe-core scans across pages and interactive states |
+| Keyboard/focus      | Operability, focus movement, skip navigation, dialog/form behavior | Playwright keyboard and focus assertions           |
+| Visual regression   | Layout, typography, spacing, styling, clipping, responsive changes | Playwright `toHaveScreenshot`                      |
+| Component states    | Dialogs, validation errors, tab panels, focused/selected states    | State-specific a11y + visual tests                 |
+| Cross-browser smoke | Basic behavior across Chromium, Firefox, and WebKit                | Playwright project matrix                          |
+| Harness contract    | Proof that the accessibility gate fails known defects              | Intentionally invalid local fixture                |
+| Static quality      | Formatting, linting, and TypeScript correctness                    | Prettier, ESLint, TypeScript                       |
+| Supply chain        | Vulnerable dependency changes and source-code security findings    | Dependabot, dependency review, CodeQL, npm audit   |
 
 Automated accessibility testing is intentionally **not** presented as complete WCAG certification. Human checks remain necessary for screen-reader usability, content meaning, cognitive accessibility, meaningful focus order, zoom/reflow judgment, and other context-dependent criteria. See [the manual accessibility checklist](docs/manual-accessibility-checklist.md).
 
@@ -49,15 +49,15 @@ BASE_URL=https://example.internal npm run test:accessibility
 
 ### Common commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run check` | Formatting, ESLint, and TypeScript quality gate |
-| `npm run test:smoke` | Cross-browser navigation/console smoke suite |
+| Command                      | Purpose                                              |
+| ---------------------------- | ---------------------------------------------------- |
+| `npm run check`              | Formatting, ESLint, and TypeScript quality gate      |
+| `npm run test:smoke`         | Cross-browser navigation/console smoke suite         |
 | `npm run test:accessibility` | axe + keyboard/state accessibility suite in Chromium |
-| `npm run test:visual` | Chromium desktop + mobile visual comparisons |
-| `npm run visual:update` | Generate/update local visual snapshots for review |
-| `npm test` | Full Playwright project matrix |
-| `npm run report` | Open the latest Playwright HTML report |
+| `npm run test:visual`        | Chromium desktop + mobile visual comparisons         |
+| `npm run visual:update`      | Generate/update local visual snapshots for review    |
+| `npm test`                   | Full Playwright project matrix                       |
+| `npm run report`             | Open the latest Playwright HTML report               |
 
 ## Accessibility policy
 
@@ -81,7 +81,7 @@ Visual snapshots are environment-sensitive, so the canonical baseline is produce
 6. After merge, `main` generates the new canonical baseline automatically.
 7. A weekly refresh keeps baseline artifacts available before GitHub artifact retention expires.
 
-This deliberately separates *review evidence* from *source code*. See [Visual regression strategy](docs/visual-regression.md) and [ADR-001](docs/adr-001-visual-baseline-artifacts.md).
+This deliberately separates _review evidence_ from _source code_. See [Visual regression strategy](docs/visual-regression.md) and [ADR-001](docs/adr-001-visual-baseline-artifacts.md).
 
 ## CI quality gates
 
@@ -101,11 +101,11 @@ Create the repository label `visual-change-approved` and restrict label/bypass p
 
 ## Environment variables
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `BASE_URL` | `http://127.0.0.1:4173` | Target application URL |
-| `TEST_PORT` | `4173` | Local deterministic site port |
-| `CI` | provided by CI | Enables CI retries/workers/report behavior |
+| Variable    | Default                 | Meaning                                    |
+| ----------- | ----------------------- | ------------------------------------------ |
+| `BASE_URL`  | `http://127.0.0.1:4173` | Target application URL                     |
+| `TEST_PORT` | `4173`                  | Local deterministic site port              |
+| `CI`        | provided by CI          | Enables CI retries/workers/report behavior |
 
 `TEST_PORT` is validated as an integer from 1 through 65535. When `BASE_URL` is supplied, Playwright targets that environment while the bundled server remains available for self-tests and contract fixtures.
 

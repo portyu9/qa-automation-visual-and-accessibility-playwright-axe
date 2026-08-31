@@ -56,14 +56,14 @@ Dependabot separately proposes npm and GitHub Actions updates. Action references
 
 ## Artifact taxonomy
 
-| Artifact | Created by | Purpose |
-| --- | --- | --- |
-| `accessibility-report-*` | accessibility job | HTML/JUnit/test evidence with axe attachments |
-| `smoke-report-*` | smoke matrix | Cross-browser failure evidence |
-| `visual-review-*` | PR visual job | Expected/actual/diff evidence from the base comparison |
-| `visual-candidate-*` | approved PR visual path | Candidate snapshots generated after explicit approval |
-| `visual-baselines-linux-chromium` | baseline workflow | Canonical snapshot tree for a `main` SHA |
-| `visual-baseline-report-*` | baseline workflow | Proof that generated canonical snapshots self-verify |
+| Artifact                          | Created by              | Purpose                                                |
+| --------------------------------- | ----------------------- | ------------------------------------------------------ |
+| `accessibility-report-*`          | accessibility job       | HTML/JUnit/test evidence with axe attachments          |
+| `smoke-report-*`                  | smoke matrix            | Cross-browser failure evidence                         |
+| `visual-review-*`                 | PR visual job           | Expected/actual/diff evidence from the base comparison |
+| `visual-candidate-*`              | approved PR visual path | Candidate snapshots generated after explicit approval  |
+| `visual-baselines-linux-chromium` | baseline workflow       | Canonical snapshot tree for a `main` SHA               |
+| `visual-baseline-report-*`        | baseline workflow       | Proof that generated canonical snapshots self-verify   |
 
 Artifact names include run or project context where needed to prevent matrix collisions.
 

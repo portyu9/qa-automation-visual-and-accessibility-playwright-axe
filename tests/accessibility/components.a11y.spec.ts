@@ -33,7 +33,9 @@ test.describe('component accessibility states', () => {
     a11y.assertNoViolations(results);
   });
 
-  test('moves focus to the first invalid field and announces validation status', async ({ page }) => {
+  test('moves focus to the first invalid field and announces validation status', async ({
+    page,
+  }) => {
     await page.getByRole('button', { name: 'Validate request' }).click();
 
     const title = page.getByRole('textbox', { name: 'Request title' });
