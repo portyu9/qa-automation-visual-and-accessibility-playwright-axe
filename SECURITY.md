@@ -21,4 +21,4 @@ Include, when safe to share privately:
 
 Relevant reports include vulnerabilities in test infrastructure, unsafe workflow permissions, artifact or cache poisoning paths, credential exposure, dependency/supply-chain compromise, unsafe target URL handling, and code paths that could execute untrusted input in CI.
 
-Automated dependency alerts, Dependabot, dependency review, npm audit, and CodeQL supplement—but do not replace—responsible disclosure and human review.
+Automated controls include Dependabot, change-aware Dependency Review when GitHub Dependency graph is available, HIGH/CRITICAL npm advisory gating, Trivy dependency/configuration/secret scanning, and CodeQL `security-extended` analysis. These controls have different scopes, do not substitute for one another, and supplement rather than replace responsible disclosure and human review.

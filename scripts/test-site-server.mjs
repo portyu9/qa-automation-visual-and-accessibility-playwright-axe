@@ -1,13 +1,18 @@
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('../test-site', import.meta.url)));
-const port = Number.parseInt(process.env.TEST_PORT ?? '4173', 10);
+const portValue = process.env.TEST_PORT ?? '4173';
 
-if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-  throw new Error(`Invalid TEST_PORT: ${process.env.TEST_PORT ?? ''}`);
+if (!/^\d+$/.test(portValue)) {
+  throw new Error(`Invalid TEST_PORT: ${portValue}`);
+}
+
+const port = Number(portValue);
+if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+  throw new Error(`Invalid TEST_PORT: ${portValue}`);
 }
 
 const mimeTypes = new Map([
@@ -40,11 +45,12 @@ function resolveRequestPath(urlPathname) {
   } catch {
     return null;
   }
-  const requested = decoded === '/' ? '/index.html' : decoded;
-  const normalized = normalize(requested).replace(/^(\.\.(\/|\\|$))+/, '');
-  const absolutePath = resolve(join(root, normalized));
 
-  if (!absolutePath.startsWith(`${root}/`) && absolutePath !== root) {
+  const requested = decoded === '/' ? 'index.html' : decoded.replace(/^[/\\]+/u, '');
+  const absolutePath = resolve(root, requested);
+  const relativePath = relative(root, absolutePath);
+
+  if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
     return null;
   }
 
@@ -94,7 +100,9 @@ const server = createServer((request, response) => {
     return;
   }
 
-  createReadStream(filePath).pipe(response);
+  const stream = createReadStream(filePath);
+  stream.on('error', (error) => response.destroy(error));
+  stream.pipe(response);
 });
 
 server.listen(port, '127.0.0.1', () => {

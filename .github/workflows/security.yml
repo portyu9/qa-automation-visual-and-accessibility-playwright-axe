@@ -17,6 +17,7 @@ permissions:
 
 env:
   NODE_VERSION: 24.20.0
+  NPM_VERSION: 11.19.1
 
 jobs:
   codeql:
@@ -39,6 +40,129 @@ jobs:
           queries: security-extended
       - name: Analyze
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
+      - name: Install reviewed dependency graph
+        run: npm ci --ignore-scripts
+      - name: Audit npm dependency graph at HIGH/CRITICAL severity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/security/npm
+          set +e
+          npm audit --audit-level=high --json > reports/security/npm/audit.json
+          audit_status=$?
+          set -e
+          AUDIT_STATUS="$audit_status" node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'reports/security/npm/audit.json';
+          if (!fs.existsSync(path) || fs.statSync(path).size === 0) {
+            throw new Error('npm audit did not produce JSON evidence');
+          }
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const counts = report.metadata?.vulnerabilities;
+          if (!counts) {
+            throw new Error('npm audit JSON is missing vulnerability metadata');
+          }
+          const summary = [
+            '### npm advisory gate',
+            '',
+            '| Severity | Findings |',
+            '| --- | ---: |',
+            `| Critical | ${counts.critical ?? 0} |`,
+            `| High | ${counts.high ?? 0} |`,
+            `| Moderate | ${counts.moderate ?? 0} |`,
+            `| Low | ${counts.low ?? 0} |`,
+            '',
+            '- Policy: npm exits nonzero when HIGH/CRITICAL advisories meet the configured audit threshold.',
+            '- Scope: the committed npm lock graph, including development dependencies used to execute the framework.',
+            '',
+          ].join('\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+          NODE
+          exit "$audit_status"
+      - name: Upload npm audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-audit-evidence-${{ github.run_id }}
+          path: reports/security/npm/
+          if-no-files-found: error
+          retention-days: 14
+
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Prepare evidence directory
+        run: mkdir -p reports/security/trivy
+      - name: Scan dependencies, configuration, and repository secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: json
+          output: reports/security/trivy/trivy.json
+          exit-code: '1'
+      - name: Publish security summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="reports/security/trivy/trivy.json"
+          summary="reports/security/trivy/summary.md"
+          if [[ ! -s "$report" ]]; then
+            printf '### Trivy security gate\n\nTrivy did not produce a report. Inspect the scan step for setup/runtime failure.\n' | tee "$summary" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          vulnerabilities=$(jq '[.Results[]? | .Vulnerabilities[]?] | length' "$report")
+          misconfigurations=$(jq '[.Results[]? | .Misconfigurations[]?] | length' "$report")
+          secrets=$(jq '[.Results[]? | .Secrets[]?] | length' "$report")
+          {
+            echo '### Trivy security gate'
+            echo
+            echo '| Signal | Findings |'
+            echo '| --- | ---: |'
+            echo "| Fixed HIGH/CRITICAL vulnerabilities | ${vulnerabilities} |"
+            echo "| HIGH/CRITICAL misconfigurations | ${misconfigurations} |"
+            echo "| Gated secret findings | ${secrets} |"
+            echo
+            echo '- Scanner: Trivy v0.74.0'
+            echo '- Scope: repository filesystem, dependency manifests/locks, supported configuration files, and committed secret material'
+            echo '- Policy: gated findings retain a nonzero scan result; JSON evidence is preserved for triage'
+          } | tee "$summary" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Trivy security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trivy-security-evidence-${{ github.run_id }}
+          path: reports/security/trivy/
+          if-no-files-found: error
+          retention-days: 14
 
   dependency-review:
     name: dependency-review
@@ -65,12 +189,13 @@ jobs:
             echo 'GitHub Dependency graph is available; running change-aware Dependency Review.'
           else
             echo 'available=false' >> "$GITHUB_OUTPUT"
-            echo '::warning::GitHub Dependency graph is unavailable; using a high-severity npm audit fallback. Enable Dependency graph to restore change-aware Dependency Review.'
+            echo '::warning::GitHub Dependency graph is unavailable; npm Audit and Trivy remain authoritative repository-wide gates, but change-aware Dependency Review cannot run.'
             {
               echo '### Dependency Review fallback'
               echo
-              echo 'GitHub Dependency graph is unavailable for this repository, so change-aware Dependency Review cannot run.'
-              echo 'This job is using `npm audit --audit-level=high` as a fail-closed fallback. Enable Dependency graph in repository security settings for the stronger pull-request diff analysis.'
+              echo 'GitHub Dependency graph is unavailable for this repository, so pull-request diff analysis cannot run.'
+              echo 'Independent npm Audit and Trivy jobs still gate the committed dependency graph and repository, but neither is represented as equivalent to change-aware Dependency Review.'
+              echo 'Enable Dependency graph in repository security settings to add the stronger PR-diff control.'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Review dependency changes
@@ -78,15 +203,40 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
-      - name: Set up Node.js for fallback audit
+      - name: Confirm repository-wide fallback gates
         if: steps.dependency-graph.outputs.available != 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - name: Install fallback dependency graph
-        if: steps.dependency-graph.outputs.available != 'true'
-        run: npm ci --ignore-scripts
-      - name: Audit fallback dependencies
-        if: steps.dependency-graph.outputs.available != 'true'
-        run: npm audit --audit-level=high
+        run: echo 'Dependency Review service unavailable; npm Audit and Trivy remain independent required jobs in this workflow.'
+
+  security-gate:
+    name: security-gate
+    if: always()
+    needs: [codeql, npm-audit, trivy, dependency-review]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Evaluate security jobs
+        env:
+          CODEQL: ${{ needs.codeql.result }}
+          NPM_AUDIT: ${{ needs.npm-audit.result }}
+          TRIVY: ${{ needs.trivy.result }}
+          DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
+          EVENT: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$NPM_AUDIT" == "success" ]] || { echo "npm-audit=$NPM_AUDIT"; exit 1; }
+          [[ "$TRIVY" == "success" ]] || { echo "trivy=$TRIVY"; exit 1; }
+
+          if [[ "$EVENT" == "pull_request" && "$HEAD_REPOSITORY" != "$REPOSITORY" ]]; then
+            [[ "$CODEQL" == "skipped" || "$CODEQL" == "success" ]] || { echo "codeql=$CODEQL"; exit 1; }
+          else
+            [[ "$CODEQL" == "success" ]] || { echo "codeql=$CODEQL"; exit 1; }
+          fi
+
+          if [[ "$EVENT" == "pull_request" ]]; then
+            [[ "$DEPENDENCY_REVIEW" == "success" ]] || { echo "dependency-review=$DEPENDENCY_REVIEW"; exit 1; }
+          else
+            [[ "$DEPENDENCY_REVIEW" == "skipped" ]] || { echo "dependency-review=$DEPENDENCY_REVIEW"; exit 1; }
+          fi

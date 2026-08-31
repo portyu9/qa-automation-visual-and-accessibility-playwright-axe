@@ -16,6 +16,7 @@ permissions:
 
 env:
   NODE_VERSION: 24.20.0
+  NPM_VERSION: 11.19.1
 
 jobs:
   baseline:
@@ -30,6 +31,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Install Chromium
@@ -38,14 +45,18 @@ jobs:
         run: npm run visual:update
       - name: Verify canonical snapshots
         run: npm run test:visual
-      - name: Assert baseline set is non-empty
+      - name: Validate visual execution evidence
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 12 visual/
+      - name: Assert baseline set is meaningful
         shell: bash
         run: |
           set -euo pipefail
-          if ! find tests/__screenshots__ -type f -name '*.png' -print -quit | grep -q .; then
-            echo "::error::Visual suite produced no PNG snapshots."
+          snapshot_count="$(find tests/__screenshots__ -type f -name '*.png' | wc -l | tr -d ' ')"
+          if [[ "$snapshot_count" -lt 12 ]]; then
+            echo "::error::Visual suite produced only ${snapshot_count} PNG snapshots; expected at least 12 governed desktop/mobile baselines."
             exit 1
           fi
+          echo "Validated ${snapshot_count} canonical PNG snapshots."
       - name: Upload canonical visual baseline
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
