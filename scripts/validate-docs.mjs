@@ -3,12 +3,7 @@ import { dirname, extname, join, resolve } from 'node:path';
 
 const root = process.cwd();
 const failures = [];
-const ignoredDirectories = new Set([
-  '.git',
-  'node_modules',
-  'playwright-report',
-  'test-results',
-]);
+const ignoredDirectories = new Set(['.git', 'node_modules', 'playwright-report', 'test-results']);
 
 function fail(message) {
   failures.push(message);
@@ -75,7 +70,9 @@ if (!readme.includes(`Node.js **${nodeVersion} LTS**`)) {
   fail(`README.md: qualified Node version must match .nvmrc (${nodeVersion})`);
 }
 if (!npmVersion || !readme.includes(`npm **${npmVersion}**`)) {
-  fail(`README.md: qualified npm version must match packageManager (${packageJson.packageManager})`);
+  fail(
+    `README.md: qualified npm version must match packageManager (${packageJson.packageManager})`,
+  );
 }
 
 const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
