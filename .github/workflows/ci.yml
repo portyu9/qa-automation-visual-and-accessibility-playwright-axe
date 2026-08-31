@@ -16,12 +16,13 @@ permissions:
 
 env:
   NODE_VERSION: 24.20.0
+  NPM_VERSION: 11.19.1
 
 jobs:
   quality:
     name: quality
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,12 +31,32 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Static quality gate
         run: npm run check
+      - name: Run framework contract gate
+        run: npm run test:framework
+      - name: Validate framework execution evidence
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 4 framework/config.contract.spec.ts
       - name: Audit dependency graph
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
+      - name: Upload framework evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: framework-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
 
   accessibility:
     name: accessibility
@@ -49,12 +70,20 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run accessibility gate
         run: npm run test:accessibility
+      - name: Validate accessibility execution evidence
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 11 accessibility/
       - name: Upload accessibility evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -82,14 +111,22 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Install browser
         run: npx playwright install --with-deps "${{ matrix.browser }}"
       - name: Run smoke suite
         run: npm run test:smoke -- --project="${{ matrix.browser }}"
+      - name: Validate smoke execution evidence
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 1 smoke/navigation.spec.ts
       - name: Upload smoke evidence
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: smoke-report-${{ matrix.browser }}-${{ github.run_id }}
@@ -119,6 +156,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Retrieve exact-base visual baseline
@@ -183,6 +226,19 @@ jobs:
           rm -rf tests/__screenshots__ test-results playwright-report
           npm run visual:update
           npm run test:visual
+      - name: Validate successful visual execution evidence
+        if: steps.compare.outputs.status == '0' || env.VISUAL_CHANGE_APPROVED == 'true'
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 12 visual/
+      - name: Upload visual comparison evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-comparison-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload visual review evidence
         if: always() && steps.compare.outputs.status != '0'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
