@@ -4,7 +4,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/components.html');
 });
 
-test('component laboratory matches its default baseline', async ({ page, visual }) => {
+test('component laboratory matches its default baseline', async ({ visual }) => {
   await visual.pageScreenshot('component-laboratory.png');
 });
 
