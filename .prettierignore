@@ -1,0 +1,6 @@
+node_modules
+playwright-report
+test-results
+tests/__screenshots__
+package-lock.json
+LICENSE

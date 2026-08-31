@@ -1,0 +1,228 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24.20.0
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Static quality gate
+        run: npm run check
+      - name: Audit dependency graph
+        run: npm audit --audit-level=critical
+
+  accessibility:
+    name: accessibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run accessibility gate
+        run: npm run test:accessibility
+      - name: Upload accessibility evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: accessibility-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 21
+
+  smoke:
+    name: smoke / ${{ matrix.browser }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Install browser
+        run: npx playwright install --with-deps "${{ matrix.browser }}"
+      - name: Run smoke suite
+        run: npm run test:smoke -- --project="${{ matrix.browser }}"
+      - name: Upload smoke evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: smoke-report-${{ matrix.browser }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  visual:
+    name: visual
+    if: github.event_name == 'pull_request'
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      VISUAL_CHANGE_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'visual-change-approved') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Retrieve exact-base visual baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id=""
+          for attempt in {1..36}; do
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow visual-baseline.yml \
+              --branch main \
+              --commit "$BASE_SHA" \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // empty')"
+
+            [[ -n "$run_id" ]] && break
+            sleep 10
+          done
+
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful Visual Baseline run exists for PR base SHA $BASE_SHA. Rebase/update the PR or regenerate that exact baseline through the controlled baseline workflow."
+            exit 1
+          fi
+
+          mkdir -p tests/__screenshots__
+          gh run download "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name visual-baselines-linux-chromium \
+            --dir tests/__screenshots__
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Compare against canonical baseline
+        id: compare
+        shell: bash
+        run: |
+          set +e
+          npm run test:visual
+          status=$?
+          set -e
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [[ "$status" -eq 0 ]]; then
+            exit 0
+          fi
+
+          mkdir -p visual-review
+          [[ -d test-results ]] && cp -R test-results visual-review/test-results || true
+          [[ -d playwright-report ]] && cp -R playwright-report visual-review/playwright-report || true
+
+          if [[ "$VISUAL_CHANGE_APPROVED" != "true" ]]; then
+            echo "::error::Visual regression detected. Review the diff artifact. If the change is deliberate, an authorized maintainer may apply the visual-change-approved label."
+            exit "$status"
+          fi
+
+          echo "Intentional visual change has explicit maintainer approval; verifying candidate baseline."
+      - name: Generate approved candidate baseline
+        if: steps.compare.outputs.status != '0' && env.VISUAL_CHANGE_APPROVED == 'true'
+        run: |
+          rm -rf tests/__screenshots__ test-results playwright-report
+          npm run visual:update
+          npm run test:visual
+      - name: Upload visual review evidence
+        if: always() && steps.compare.outputs.status != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-review-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: visual-review/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Upload approved candidate baseline
+        if: steps.compare.outputs.status != '0' && env.VISUAL_CHANGE_APPROVED == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-candidate-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: tests/__screenshots__/
+          if-no-files-found: error
+          retention-days: 30
+
+  quality-gate:
+    name: quality-gate
+    if: always()
+    needs: [quality, accessibility, smoke, visual]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Evaluate required jobs
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          ACCESSIBILITY: ${{ needs.accessibility.result }}
+          SMOKE: ${{ needs.smoke.result }}
+          VISUAL: ${{ needs.visual.result }}
+          EVENT: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$QUALITY" == "success" ]] || { echo "quality=$QUALITY"; exit 1; }
+          [[ "$ACCESSIBILITY" == "success" ]] || { echo "accessibility=$ACCESSIBILITY"; exit 1; }
+          [[ "$SMOKE" == "success" ]] || { echo "smoke=$SMOKE"; exit 1; }
+
+          if [[ "$EVENT" == "pull_request" ]]; then
+            [[ "$VISUAL" == "success" ]] || { echo "visual=$VISUAL"; exit 1; }
+          else
+            [[ "$VISUAL" == "skipped" || "$VISUAL" == "success" ]] || { echo "visual=$VISUAL"; exit 1; }
+          fi
