@@ -4,7 +4,16 @@ import { test, expect } from '@playwright/test';
 
 const serverScript = 'scripts/test-site-server.mjs';
 
-async function stopServer(child: ReturnType<typeof spawn>): Promise<void> {
+type SpawnedServer = ReturnType<typeof spawn>;
+
+function waitForExit(child: SpawnedServer): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', resolve);
+  });
+}
+
+async function stopServer(child: SpawnedServer): Promise<void> {
   if (child.exitCode !== null) return;
   child.kill('SIGTERM');
   await once(child, 'exit');
@@ -19,12 +28,12 @@ test.describe('deterministic fixture server contract', () => {
     });
 
     let stderr = '';
-    child.stderr?.setEncoding('utf8');
-    child.stderr?.on('data', (chunk) => {
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
 
-    const [code] = await once(child, 'exit');
+    const code = await waitForExit(child);
     expect(code).not.toBe(0);
     expect(stderr).toContain('Invalid TEST_PORT: 4173x');
   });
@@ -38,10 +47,10 @@ test.describe('deterministic fixture server contract', () => {
     });
 
     try {
-      child.stdout?.setEncoding('utf8');
+      child.stdout.setEncoding('utf8');
       await Promise.race([
-        once(child.stdout!, 'data'),
-        once(child, 'exit').then(([code]) => {
+        once(child.stdout, 'data'),
+        waitForExit(child).then((code) => {
           throw new Error(`fixture server exited before readiness with code ${String(code)}`);
         }),
       ]);
