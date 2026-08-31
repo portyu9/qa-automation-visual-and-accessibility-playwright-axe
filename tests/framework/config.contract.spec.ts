@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/test.js';
+import { test, expect } from '@playwright/test';
 import { readBaseURL, readPort } from '../../framework/config.js';
 
 test.describe('runtime configuration contract', () => {
