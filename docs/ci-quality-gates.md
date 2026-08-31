@@ -60,15 +60,13 @@ Dependabot separately proposes npm and GitHub Actions updates. Action references
 
 ## Artifact taxonomy
 
-| Artifact                          | Created by              | Purpose                                                |
-| --------------------------------- | ----------------------- | ------------------------------------------------------ |
-| `accessibility-report-*`          | accessibility job       | HTML/JUnit/test evidence with axe attachments          |
-| `smoke-report-*`                  | smoke matrix            | Cross-browser failure evidence                         |
-| `visual-bootstrap-candidate-*`    | bootstrap visual path   | One-time generated/verified bootstrap snapshot evidence |
-| `visual-review-*`                 | PR visual job           | Expected/actual/diff evidence from the base comparison |
-| `visual-candidate-*`              | approved PR visual path | Candidate snapshots generated after explicit approval  |
-| `visual-baselines-linux-chromium` | baseline workflow       | Canonical snapshot tree for a `main` SHA               |
-| `visual-baseline-report-*`        | baseline workflow       | Proof that generated canonical snapshots self-verify   |
+- `accessibility-report-*`: HTML/JUnit/test evidence with axe attachments from the accessibility job.
+- `smoke-report-*`: cross-browser failure evidence from the smoke matrix.
+- `visual-bootstrap-candidate-*`: one-time generated and verified bootstrap snapshot evidence.
+- `visual-review-*`: expected/actual/diff evidence from a pull-request base comparison.
+- `visual-candidate-*`: candidate snapshots generated after explicit intentional-change approval.
+- `visual-baselines-linux-chromium`: canonical snapshot tree for a `main` SHA.
+- `visual-baseline-report-*`: proof that generated canonical snapshots self-verify.
 
 Artifact names include run or project context where needed to prevent matrix collisions.
 
