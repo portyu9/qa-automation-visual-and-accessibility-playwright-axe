@@ -45,8 +45,25 @@ export default tseslint.config(
       sourceType: 'module',
       globals: {
         Buffer: 'readonly',
+        URL: 'readonly',
         console: 'readonly',
         process: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['test-site/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'script',
+      globals: {
+        document: 'readonly',
+        HTMLButtonElement: 'readonly',
+        HTMLDialogElement: 'readonly',
+        HTMLElement: 'readonly',
+        HTMLFormElement: 'readonly',
+        HTMLInputElement: 'readonly',
+        HTMLSelectElement: 'readonly',
       },
     },
   },
