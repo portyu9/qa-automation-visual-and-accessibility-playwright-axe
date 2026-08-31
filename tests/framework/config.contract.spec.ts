@@ -15,9 +15,7 @@ test.describe('runtime configuration contract', () => {
   });
 
   test('accepts absolute http and https targets without hidden URL state', () => {
-    expect(readBaseURL('https://qa.example.test/app/', 4173)).toBe(
-      'https://qa.example.test/app',
-    );
+    expect(readBaseURL('https://qa.example.test/app/', 4173)).toBe('https://qa.example.test/app');
     expect(readBaseURL('http://localhost:8080', 4173)).toBe('http://localhost:8080');
   });
 
