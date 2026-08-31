@@ -21,8 +21,8 @@ jobs:
         with:
           node-version: 24.20.0
           package-manager-cache: false
-      - name: Generate lockfile
-        run: npm install --package-lock-only --ignore-scripts
+      - name: Install and lock dependencies
+        run: npm install --ignore-scripts
       - name: Validate dependency graph
         run: npm ls --all
       - name: Commit lockfile
