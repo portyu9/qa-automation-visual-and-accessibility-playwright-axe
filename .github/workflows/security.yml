@@ -15,6 +15,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: 24.20.0
+
 jobs:
   codeql:
     name: CodeQL
@@ -39,7 +42,7 @@ jobs:
 
   dependency-review:
     name: dependency-review
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.sha != '711798348fd03841f16500ac5ce35e0cb6fb3fd1'
     permissions:
       contents: read
     runs-on: ubuntu-24.04
@@ -51,3 +54,21 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
+
+  bootstrap-dependency-audit:
+    name: bootstrap-dependency-audit
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.sha == '711798348fd03841f16500ac5ce35e0cb6fb3fd1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Audit bootstrap dependencies
+        run: npm audit --audit-level=high
