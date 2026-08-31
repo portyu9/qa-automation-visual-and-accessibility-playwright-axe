@@ -1,125 +1,144 @@
 # Visual & Accessibility QA Automation — Playwright + axe-core
 
-A production-oriented TypeScript test framework that treats **visual fidelity** and **accessibility conformance** as complementary quality gates. Playwright provides deterministic browser automation, cross-browser smoke coverage, trace/video evidence, and native visual assertions; `@axe-core/playwright` provides automated WCAG rule evaluation with governed exceptions and machine-readable findings.
+A TypeScript quality-engineering framework that treats **visual fidelity** and **accessibility** as complementary browser-quality signals. Playwright owns deterministic browser execution, interaction, reporting, traces, screenshots, and visual comparison. `@axe-core/playwright` adds automated WCAG rule evaluation with governed, expiring exclusions.
 
-The repository includes a deterministic reference application so the framework can validate itself without relying on a third-party site. For a real product, point the same test architecture at the target environment with `BASE_URL`.
+The repository includes a deterministic local application so framework health never depends on a public demo site. Product-specific use can point the same architecture at an approved HTTP(S) target through `BASE_URL`.
 
 ## Quality model
 
-| Layer               | What it detects                                                    | Primary implementation                             |
-| ------------------- | ------------------------------------------------------------------ | -------------------------------------------------- |
-| Accessibility rules | WCAG A/AA issues detectable by automation                          | axe-core scans across pages and interactive states |
-| Keyboard/focus      | Operability, focus movement, skip navigation, dialog/form behavior | Playwright keyboard and focus assertions           |
-| Visual regression   | Layout, typography, spacing, styling, clipping, responsive changes | Playwright `toHaveScreenshot`                      |
-| Component states    | Dialogs, validation errors, tab panels, focused/selected states    | State-specific a11y + visual tests                 |
-| Cross-browser smoke | Basic behavior across Chromium, Firefox, and WebKit                | Playwright project matrix                          |
-| Harness contract    | Proof that the accessibility gate fails known defects              | Intentionally invalid local fixture                |
-| Static quality      | Formatting, linting, and TypeScript correctness                    | Prettier, ESLint, TypeScript                       |
-| Supply chain        | Vulnerable dependency changes and source-code security findings    | Dependabot, dependency review, CodeQL, npm audit   |
+| Validation plane | What it proves | Primary evidence |
+| --- | --- | --- |
+| Framework contracts | Runtime configuration fails early and helpers retain their policy contracts | Validated Playwright JUnit + HTML report |
+| Accessibility rules | Automated WCAG A/AA defects are detected and the harness fails known violations | axe JSON/Markdown attachments + JUnit |
+| Keyboard/focus | Navigation, tabs, dialog focus, skip links, and validation focus remain operable | Playwright assertions |
+| Visual regression | Governed desktop/mobile Chromium states remain within explicit image thresholds | Expected/actual/diff images + HTML report |
+| Cross-browser smoke | Critical navigation works in Chromium, Firefox, and WebKit | Per-engine validated JUnit + HTML report |
+| Static quality | Formatting, linting, and TypeScript contracts remain clean | Prettier, ESLint, TypeScript exit status |
+| Supply chain | Source, dependency, configuration, secret, and dependency-diff risk is gated independently | CodeQL, npm audit JSON, Trivy JSON, Dependency Review |
+| Baseline provenance | Canonical screenshots are generated and self-verified in controlled Linux CI | SHA-associated baseline artifact + verification report |
 
-Automated accessibility testing is intentionally **not** presented as complete WCAG certification. Human checks remain necessary for screen-reader usability, content meaning, cognitive accessibility, meaningful focus order, zoom/reflow judgment, and other context-dependent criteria. See [the manual accessibility checklist](docs/manual-accessibility-checklist.md).
+Automated accessibility analysis is **not** represented as WCAG certification. Screen-reader usability, content meaning, cognitive accessibility, meaningful focus order, zoom/reflow judgment, and other context-dependent criteria still require human review. See [the manual accessibility checklist](docs/manual-accessibility-checklist.md).
 
-## Design principles
+## Engineering invariants
 
-- **One user journey, two lenses.** The same meaningful UI states can be checked for accessibility semantics and pixels instead of maintaining disconnected suites.
-- **Deterministic visual inputs.** Fixed viewport, locale, timezone, color scheme, reduced motion, font readiness, and dynamic-region masks reduce noise before tolerances are considered.
-- **Baselines are governed evidence.** Canonical PNG baselines are generated by Linux CI on every `main` commit and stored as artifacts rather than committed as binary churn.
-- **PRs compare against the exact base SHA.** A pull request never silently compares against a newer or unrelated `main`; the visual job downloads the baseline produced for `github.event.pull_request.base.sha`.
-- **Intentional visual changes require an explicit approval signal.** The `visual-change-approved` label allows an authorized maintainer to acknowledge a deliberate pixel change while preserving the original diff evidence as an artifact.
-- **Accessibility suppressions expire.** Any axe exclusion must include a selector, reason, issue reference, and expiry date. An expired suppression fails before a scan can hide debt indefinitely.
-- **Evidence survives failure.** HTML/JUnit reports, axe JSON/Markdown attachments, traces, screenshots, and visual-diff artifacts are retained by CI.
-- **Least privilege by default.** Workflows declare only the GitHub token permissions their job requires and third-party GitHub Actions are pinned to immutable commit SHAs.
+- **Deterministic before tolerant.** Locale, timezone, color scheme, reduced motion, font readiness, service-worker behavior, and dynamic masks are stabilized before screenshot tolerances are considered.
+- **Baselines are evidence, not source churn.** Canonical PNGs are generated by controlled Linux CI and retained as workflow artifacts instead of being committed.
+- **PR comparisons use the exact base SHA.** A pull request fails closed when the successful canonical baseline for `github.event.pull_request.base.sha` cannot be found.
+- **Intentional visual change is explicit.** `visual-change-approved` authorizes candidate generation only after the original mismatch evidence has been preserved.
+- **Accessibility exclusions expire.** Every exclusion requires a selector, meaningful reason, issue/reference, and ISO expiry date.
+- **Harnesses prove their own failure behavior.** A deterministic invalid fixture verifies that axe detects known `button-name` and `image-alt` defects.
+- **Evidence is semantic.** Successful Playwright lanes validate non-empty JUnit/HTML evidence and minimum executed-test counts rather than treating file upload alone as proof of execution.
+- **Install scripts are not implicit trust.** CI uses `npm ci --ignore-scripts`; Playwright browser installation is an explicit separate step.
+- **Security controls are independent.** CodeQL, npm advisory scanning, Trivy repository scanning, and Dependency Review have different scopes and do not masquerade as substitutes for one another.
+- **Least privilege is the default.** Workflows start read-only and grant additional token permissions only to jobs that require them. Third-party actions use immutable full commit SHAs.
 
 ## Quick start
 
-Prerequisites: Node.js 24 LTS and npm 11.
+The qualified toolchain is Node.js **24.20.0 LTS** with npm **11.19.1**. `.nvmrc` pins Node and `packageManager` pins npm.
 
 ```bash
-npm ci
+npm install --global --ignore-scripts npm@11.19.1
+npm ci --ignore-scripts
 npx playwright install --with-deps
 npm run check
 npm test
 ```
 
-The default configuration starts the deterministic local test application automatically. To test a deployed application instead:
+The default Playwright configuration starts the deterministic local application automatically.
+
+### Command reference
+
+| Command | Purpose |
+| --- | --- |
+| `npm run check` | Prettier, ESLint, and TypeScript static gate |
+| `npm run test:framework` | Runtime/helper contract tests without browser-specific product behavior |
+| `npm run test:smoke` | Cross-browser smoke suite |
+| `npm run test:accessibility` | Chromium axe + keyboard/state accessibility suite |
+| `npm run test:visual` | Desktop/mobile Chromium visual comparison |
+| `npm run visual:update` | Generate candidate snapshots locally for investigation |
+| `npm test` | Full configured Playwright project matrix |
+| `npm run report` | Open the latest Playwright HTML report |
+
+## Runtime target policy
+
+`BASE_URL` is parsed before browser work starts. It must be an absolute `http` or `https` URL and must not embed credentials, a query string, or a fragment. Invalid configuration therefore fails at the environment boundary rather than surfacing later as an opaque navigation error.
 
 ```bash
-BASE_URL=https://example.internal npm run test:accessibility
+BASE_URL=https://qa.example.internal npm run test:accessibility
 ```
 
-### Common commands
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `BASE_URL` | `http://127.0.0.1:4173` | Approved application target |
+| `TEST_PORT` | `4173` | Deterministic local-site port; integer 1–65535 |
+| `CI` | supplied by CI | Enables CI retry/worker/report behavior |
 
-| Command                      | Purpose                                              |
-| ---------------------------- | ---------------------------------------------------- |
-| `npm run check`              | Formatting, ESLint, and TypeScript quality gate      |
-| `npm run test:smoke`         | Cross-browser navigation/console smoke suite         |
-| `npm run test:accessibility` | axe + keyboard/state accessibility suite in Chromium |
-| `npm run test:visual`        | Chromium desktop + mobile visual comparisons         |
-| `npm run visual:update`      | Generate/update local visual snapshots for review    |
-| `npm test`                   | Full Playwright project matrix                       |
-| `npm run report`             | Open the latest Playwright HTML report               |
+A product integration should add its own authorization, authentication, test-data, and environment-safety policy at the integration boundary; the generic harness does not assume that an arbitrary environment is safe for state-changing tests.
 
 ## Accessibility policy
 
-The shared accessibility auditor applies WCAG 2.0/2.1/2.2 A and AA tags and explicitly enables axe's `target-size` rule. Scans can target a full document or a named component/state. Each scan attaches:
+The shared auditor runs WCAG 2.0/2.1/2.2 A/AA tags and explicitly enables axe's `target-size` rule. A scan may target the whole document or a named component/state. Each scan attaches raw JSON and a Markdown summary containing rule IDs, impact, help links, affected selectors, exclusion metadata, and the number of incomplete checks requiring human review.
 
-- raw axe JSON for tooling and auditability;
-- a concise Markdown summary for humans;
-- affected selectors, impact, help text, and rule documentation links.
+A test fails when violations remain after approved exclusions. Exclusions are validated before axe runs, so malformed or expired debt cannot silently hide a defect. Keyboard/focus assertions remain separate because automated rule engines cannot infer all interaction semantics.
 
-A test fails when violations remain after approved exclusions. Exclusions are not anonymous CSS ignores: every exception is required to carry a reason, issue/reference, and ISO expiry date. See [Accessibility testing](docs/accessibility-testing.md) for the policy and extension examples.
+See [Accessibility testing](docs/accessibility-testing.md) for extension patterns and [Manual accessibility checklist](docs/manual-accessibility-checklist.md) for release-critical human checks.
 
 ## Visual baseline lifecycle
 
-Visual snapshots are environment-sensitive, so the canonical baseline is produced only by the controlled GitHub Actions environment:
+Canonical snapshots are environment-sensitive and are generated only by the **Visual Baseline** workflow:
 
-1. Every successful `main` SHA runs the **Visual Baseline** workflow.
-2. CI generates desktop Chromium and mobile Chromium snapshots and uploads them under that commit's workflow run.
-3. A PR finds the successful baseline workflow for its **exact base commit SHA** and downloads that artifact.
-4. Playwright compares the PR rendering against those files with tight per-pixel and diff-ratio thresholds.
-5. On an intentional redesign, a maintainer can apply `visual-change-approved`. CI preserves the failing diff evidence, regenerates a candidate from the PR, and verifies the new candidate is internally stable.
-6. After merge, `main` generates the new canonical baseline automatically.
-7. A weekly refresh keeps baseline artifacts available before GitHub artifact retention expires.
+1. Every `main` SHA generates desktop Chromium and mobile Chromium snapshots in controlled Linux CI.
+2. The generated suite is rerun against those snapshots.
+3. CI validates successful Playwright evidence and requires at least the currently governed minimum of 12 PNG baselines.
+4. The snapshot tree is uploaded under the successful workflow run for that exact SHA.
+5. A pull request resolves the successful baseline run for its exact base SHA and downloads it.
+6. The PR renders the same states and compares them with Playwright's native matcher.
+7. An unapproved mismatch fails and preserves comparison evidence.
+8. With `visual-change-approved`, CI preserves the original mismatch, generates a clean candidate baseline, reruns the visual suite, and validates the candidate evidence.
+9. After merge, the new `main` SHA becomes canonical through a fresh baseline run.
+10. A weekly refresh keeps baseline artifacts available within the configured retention window.
 
-This deliberately separates _review evidence_ from _source code_. See [Visual regression strategy](docs/visual-regression.md) and [ADR-001](docs/adr-001-visual-baseline-artifacts.md).
+This separates **review evidence** from **source code** and prevents a PR from redefining its own expected pixels before the mismatch is reviewed. See [Visual regression strategy](docs/visual-regression.md) and [ADR-001](docs/adr-001-visual-baseline-artifacts.md).
 
-## CI quality gates
+## CI and evidence gates
 
-The CI workflow runs independent quality, accessibility, smoke, and visual jobs and converges them into a single `quality-gate` status suitable for branch protection. Security automation is split into a dedicated workflow so CodeQL and dependency-review permissions stay isolated from browser-test jobs.
+`CI` has four independent execution planes and a stable aggregator:
 
-Recommended branch rules for `main`:
+- `quality` — exact npm qualification, script-disabled install, static checks, browser-independent framework contracts, semantic evidence validation, and HIGH/CRITICAL npm advisory gating;
+- `accessibility` — Chromium accessibility/state suite plus semantic JUnit/HTML validation;
+- `smoke` — Chromium/Firefox/WebKit matrix with per-engine semantic evidence validation and retained reports;
+- `visual` — exact-base baseline retrieval, comparison, intentional-change governance, candidate verification, and retained comparison evidence;
+- `quality-gate` — fails unless all event-relevant CI planes reached an acceptable conclusion.
 
-- require pull requests and at least one approval;
-- require Code Owner review for workflow/security changes;
-- require `CI / quality-gate` and the CodeQL result;
-- dismiss stale approvals when new commits are pushed;
-- require conversation resolution;
-- block force pushes and deletion;
-- restrict bypass to explicitly authorized maintainers.
+The dedicated `Security` workflow contains:
 
-Create the repository label `visual-change-approved` and restrict label/bypass privileges to trusted maintainers before relying on the intentional-visual-change path. See [CI quality gates](docs/ci-quality-gates.md) for job responsibilities, required repository settings, and artifact names.
+- CodeQL `security-extended` analysis for JavaScript/TypeScript;
+- a clean script-disabled npm install followed by HIGH/CRITICAL advisory gating with machine-readable evidence;
+- Trivy filesystem scanning for fixed HIGH/CRITICAL vulnerabilities, supported misconfiguration, and committed-secret findings;
+- pull-request Dependency Review when GitHub Dependency graph is available;
+- a stable `security-gate` aggregator that keeps repository-wide npm/Trivy controls required even when change-aware Dependency Review is unavailable.
 
-## Environment variables
+Dependency Review availability is probed explicitly. If the GitHub Dependency graph is unavailable, the workflow records that limitation rather than claiming another scanner is equivalent to PR-diff analysis.
 
-| Variable    | Default                 | Meaning                                    |
-| ----------- | ----------------------- | ------------------------------------------ |
-| `BASE_URL`  | `http://127.0.0.1:4173` | Target application URL                     |
-| `TEST_PORT` | `4173`                  | Local deterministic site port              |
-| `CI`        | provided by CI          | Enables CI retries/workers/report behavior |
+### Merge enforcement
 
-`TEST_PORT` is validated as an integer from 1 through 65535. When `BASE_URL` is supplied, Playwright targets that environment while the bundled server remains available for self-tests and contract fixtures.
+Workflow success is not the same as branch enforcement. The `main` ruleset should require at minimum:
 
-## Adding coverage
+- pull requests;
+- `CI / quality-gate`;
+- `Security / security-gate`;
+- appropriate human review, including Code Owner review for workflow/security changes;
+- stale-approval dismissal and conversation resolution;
+- force-push and deletion protection;
+- tightly controlled bypass privileges.
 
-For a new page or component:
+Create the `visual-change-approved` label and restrict who can apply it before relying on the intentional-visual-change path. See [CI quality gates](docs/ci-quality-gates.md) for the operational contract and artifact taxonomy.
 
-1. Identify user-meaningful states, not only DOM routes: default, open, selected, error, loading, disabled, and responsive states as applicable.
-2. Add an axe scan to each state whose semantics differ.
-3. Add keyboard/focus assertions wherever the interaction model matters.
-4. Add a full-page or component visual assertion only after stabilizing dynamic content.
-5. Mask genuinely nondeterministic regions at the framework boundary; do not inflate global pixel tolerances to hide noise.
-6. If a rule must be temporarily excluded, link it to tracked remediation and set an expiry date.
-7. Confirm artifacts are useful on failure, then keep assertions focused on behavior rather than implementation details.
+## Dependency maintenance
+
+Dependencies are exact-pinned in `package.json` and reproduced by `package-lock.json`. Dependabot owns npm and GitHub Actions update proposals. The TypeScript major line remains constrained until the installed `typescript-eslint` release declares support for a newer major; minor/patch maintenance remains enabled.
+
+An automated dependency PR still has to satisfy the same execution, evidence, security, and visual-governance rules as a human-authored change.
 
 ## Repository map
 
@@ -137,12 +156,13 @@ For a new page or component:
 └── tests/
     ├── accessibility/
     ├── fixtures/
+    ├── framework/
     ├── integration/
     ├── smoke/
     └── visual/
 ```
 
-The root configuration defines the pinned Node/npm toolchain, Playwright projects/reporters, TypeScript compiler policy, ESLint flat config, Prettier rules, and npm scripts. Generated Playwright reports, results, and local snapshots are intentionally ignored.
+Only directories are shown in the repository map. Root configuration files define the pinned runtime/toolchain, Playwright projects/reporters, TypeScript compiler policy, ESLint/Prettier policy, dependency graph, and command surface.
 
 ## Further documentation
 
@@ -155,8 +175,4 @@ The root configuration defines the pinned Node/npm toolchain, Playwright project
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
-## Toolchain
-
-The framework pins versions instead of floating ranges so a lockfile and Dependabot—not an incidental install day—decide when the test platform changes. TypeScript stays on the newest line officially supported by the pinned `typescript-eslint` release, even when a newer TypeScript major exists.
-
-The bundled reference app is intentionally dependency-free and served by a small Node HTTP server. It exists to exercise the harness itself; product-specific page objects, authentication fixtures, environment discovery, and test-data provisioning should be added at the integration boundary rather than baked into generic accessibility or visual helpers.
+The framework should evolve by making rendering inputs more deterministic, accessibility debt more explicit, test intent easier to diagnose, and retained evidence safer and more trustworthy. New abstraction is justified when it enforces a durable quality policy rather than merely renaming Playwright or axe APIs.
