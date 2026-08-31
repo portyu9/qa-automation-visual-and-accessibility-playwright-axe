@@ -26,16 +26,16 @@ The default target is a deterministic local application owned by this repository
 
 High-confidence browser testing depends on separating **what is being observed** from **what can legitimately judge it**. This framework uses distinct oracles because no single browser assertion can prove rendering, semantics, interaction, and accessibility together.
 
-| Validation plane | Primary oracle | What it can prove | What it deliberately does not claim |
-| --- | --- | --- | --- |
-| Framework contracts | TypeScript + Playwright contract tests | Configuration, helpers, policy boundaries, fixture behavior | Product correctness |
-| Accessibility rules | axe-core WCAG rules | Detectable rule violations in the rendered accessibility/DOM state | Complete WCAG conformance or human usability |
-| Keyboard and focus | Playwright behavioral assertions | Focus movement, operability, skip links, dialogs, validation focus | Screen-reader interpretation or cognitive clarity |
-| Visual regression | Playwright image matcher | Governed pixels changed beyond explicit thresholds | Whether a changed design is semantically correct |
-| Cross-browser smoke | Playwright browser projects | Critical behavior survives Chromium, Firefox, and WebKit | Pixel-identical rendering across engines |
-| Static quality | Prettier, ESLint, TypeScript, documentation/workflow contracts | Source and repository policy remain internally consistent | Runtime behavior |
-| Supply chain | CodeQL, npm audit, Trivy, Dependency Review | Independent source/dependency/configuration/secret risk signals | Absence of every possible vulnerability |
-| Baseline provenance | Controlled Visual Baseline workflow | Canonical pixels correspond to a successful exact `main` SHA | Approval of the underlying product design |
+| Validation plane    | Primary oracle                                                 | What it can prove                                                  | What it deliberately does not claim               |
+| ------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------- |
+| Framework contracts | TypeScript + Playwright contract tests                         | Configuration, helpers, policy boundaries, fixture behavior        | Product correctness                               |
+| Accessibility rules | axe-core WCAG rules                                            | Detectable rule violations in the rendered accessibility/DOM state | Complete WCAG conformance or human usability      |
+| Keyboard and focus  | Playwright behavioral assertions                               | Focus movement, operability, skip links, dialogs, validation focus | Screen-reader interpretation or cognitive clarity |
+| Visual regression   | Playwright image matcher                                       | Governed pixels changed beyond explicit thresholds                 | Whether a changed design is semantically correct  |
+| Cross-browser smoke | Playwright browser projects                                    | Critical behavior survives Chromium, Firefox, and WebKit           | Pixel-identical rendering across engines          |
+| Static quality      | Prettier, ESLint, TypeScript, documentation/workflow contracts | Source and repository policy remain internally consistent          | Runtime behavior                                  |
+| Supply chain        | CodeQL, npm audit, Trivy, Dependency Review                    | Independent source/dependency/configuration/secret risk signals    | Absence of every possible vulnerability           |
+| Baseline provenance | Controlled Visual Baseline workflow                            | Canonical pixels correspond to a successful exact `main` SHA       | Approval of the underlying product design         |
 
 The value is in the **intersection of evidence**. A page can be visually stable and inaccessible, semantically valid and visually broken, axe-clean but keyboard-inoperable, or cross-browser functional while only one engine exposes a layout defect. Those are different failure domains and should remain diagnosable as such.
 
@@ -103,16 +103,16 @@ For the deeper layer model and trust boundaries, see [Architecture](docs/archite
 
 Visual testing becomes unreliable when environmental noise is mistaken for product change. The framework therefore treats screenshot stability as an input-control problem before treating it as a matcher-threshold problem.
 
-| Source of visual entropy | Framework response |
-| --- | --- |
-| Fonts | Wait for `document.fonts.ready` before comparison |
-| Animation/caret state | Reduced motion plus Playwright screenshot stabilization |
-| Dynamic regions | Explicit masks only for elements carrying the dynamic-content contract |
-| Locale/timezone | Controlled Playwright context values |
-| Responsive state | Named desktop/mobile projects rather than ad hoc viewport mutation |
-| Fixture data | Repository-owned deterministic application state |
-| Browser engine | Canonical visual coverage stays intentionally scoped to Chromium projects |
-| Baseline host | Controlled Linux CI generates canonical snapshots |
+| Source of visual entropy | Framework response                                                        |
+| ------------------------ | ------------------------------------------------------------------------- |
+| Fonts                    | Wait for `document.fonts.ready` before comparison                         |
+| Animation/caret state    | Reduced motion plus Playwright screenshot stabilization                   |
+| Dynamic regions          | Explicit masks only for elements carrying the dynamic-content contract    |
+| Locale/timezone          | Controlled Playwright context values                                      |
+| Responsive state         | Named desktop/mobile projects rather than ad hoc viewport mutation        |
+| Fixture data             | Repository-owned deterministic application state                          |
+| Browser engine           | Canonical visual coverage stays intentionally scoped to Chromium projects |
+| Baseline host            | Controlled Linux CI generates canonical snapshots                         |
 
 A global tolerance increase is the broadest possible suppression. It should be the last response to noise, after the source of nondeterminism has been isolated and controlled.
 
@@ -132,16 +132,16 @@ The default Playwright configuration starts the deterministic local application 
 
 ### Command reference
 
-| Command | Purpose |
-| --- | --- |
-| `npm run check` | Formatting, lint, types, documentation, and immutable workflow-pin contracts |
-| `npm run test:framework` | Browser-independent framework/configuration contracts under the Chromium project |
-| `npm run test:smoke` | Chromium, Firefox, and WebKit critical-path compatibility |
-| `npm run test:accessibility` | Chromium axe plus keyboard/state accessibility suite |
-| `npm run test:visual` | Desktop/mobile Chromium visual and integration comparison |
-| `npm run visual:update` | Generate local candidate snapshots for investigation |
-| `npm test` | Full configured Playwright project matrix |
-| `npm run report` | Open the latest Playwright HTML report |
+| Command                      | Purpose                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `npm run check`              | Formatting, lint, types, documentation, and immutable workflow-pin contracts     |
+| `npm run test:framework`     | Browser-independent framework/configuration contracts under the Chromium project |
+| `npm run test:smoke`         | Chromium, Firefox, and WebKit critical-path compatibility                        |
+| `npm run test:accessibility` | Chromium axe plus keyboard/state accessibility suite                             |
+| `npm run test:visual`        | Desktop/mobile Chromium visual and integration comparison                        |
+| `npm run visual:update`      | Generate local candidate snapshots for investigation                             |
+| `npm test`                   | Full configured Playwright project matrix                                        |
+| `npm run report`             | Open the latest Playwright HTML report                                           |
 
 ## Runtime target policy
 
@@ -151,11 +151,11 @@ The default Playwright configuration starts the deterministic local application 
 BASE_URL=https://qa.example.internal npm run test:accessibility
 ```
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `BASE_URL` | `http://127.0.0.1:4173` | Approved application target |
-| `TEST_PORT` | `4173` | Deterministic local-site port; integer 1–65535 |
-| `CI` | supplied by CI | Enables CI retry/worker/report behavior |
+| Variable    | Default                 | Meaning                                        |
+| ----------- | ----------------------- | ---------------------------------------------- |
+| `BASE_URL`  | `http://127.0.0.1:4173` | Approved application target                    |
+| `TEST_PORT` | `4173`                  | Deterministic local-site port; integer 1–65535 |
+| `CI`        | supplied by CI          | Enables CI retry/worker/report behavior        |
 
 A product integration should add authorization, authentication, test-data, tenancy, environment allowlisting, and state-changing-test policy at the integration boundary. A reusable browser harness should not assume that every syntactically valid URL is operationally safe to test.
 
@@ -229,16 +229,16 @@ The stable repository-facing status interfaces are `CI / quality-gate` and `Secu
 
 ## Failure interpretation
 
-| Signal | First interpretation |
-| --- | --- |
-| Framework contract failure | Harness/configuration policy changed or regressed |
-| axe violation | Detectable accessibility rule failure in the rendered state |
-| Keyboard/focus failure | Interaction semantics or focus-management regression |
-| Visual mismatch | Governed pixels changed; review intent before updating expectations |
-| Cross-browser-only failure | Engine compatibility or timing/rendering difference |
-| Missing exact-base baseline | Baseline provenance/retention problem, not a reason to compare against another SHA |
-| Evidence-validator failure | Intended tests/artifacts were not proven to have executed correctly |
-| npm/Trivy/CodeQL failure | Independent supply-chain or source-security signal |
+| Signal                        | First interpretation                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| Framework contract failure    | Harness/configuration policy changed or regressed                                    |
+| axe violation                 | Detectable accessibility rule failure in the rendered state                          |
+| Keyboard/focus failure        | Interaction semantics or focus-management regression                                 |
+| Visual mismatch               | Governed pixels changed; review intent before updating expectations                  |
+| Cross-browser-only failure    | Engine compatibility or timing/rendering difference                                  |
+| Missing exact-base baseline   | Baseline provenance/retention problem, not a reason to compare against another SHA   |
+| Evidence-validator failure    | Intended tests/artifacts were not proven to have executed correctly                  |
+| npm/Trivy/CodeQL failure      | Independent supply-chain or source-security signal                                   |
 | Dependency Review unavailable | GitHub service capability gap; repository-wide scans continue but are not equivalent |
 
 Failure taxonomy matters because the cheapest correct response depends on the failed boundary. A visual mismatch should not be "fixed" by weakening axe policy, and an unavailable baseline should not be bypassed by accepting pixels from an unrelated commit.
