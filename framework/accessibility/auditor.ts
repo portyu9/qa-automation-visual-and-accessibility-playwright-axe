@@ -1,14 +1,12 @@
-import AxeBuilder from '@axe-core/playwright';
+import { AxeBuilder } from '@axe-core/playwright';
 import type { Page, TestInfo } from '@playwright/test';
+import type { AxeResults, Result } from 'axe-core';
 import {
   WCAG_AA_TAGS,
   type AccessibilityAuditOptions,
   type AccessibilityExclusion,
   validateExclusions,
 } from './policy.js';
-
-type AxeResults = Awaited<ReturnType<InstanceType<typeof AxeBuilder>['analyze']>>;
-type AxeViolation = AxeResults['violations'][number];
 
 function slugify(value: string): string {
   return value
@@ -18,14 +16,14 @@ function slugify(value: string): string {
     .slice(0, 80);
 }
 
-function formatTargets(nodes: AxeViolation['nodes']): string {
+function formatTargets(nodes: Result['nodes']): string {
   return nodes
     .flatMap((node) => node.target)
     .map((target) => `\`${String(target)}\``)
     .join(', ');
 }
 
-function formatViolation(violation: AxeViolation): string {
+function formatViolation(violation: Result): string {
   const impact = violation.impact ?? 'unknown';
   const targets = formatTargets(violation.nodes);
   return `- **${violation.id}** (${impact}): ${violation.help}\n  - ${violation.helpUrl}\n  - Targets: ${targets}`;
