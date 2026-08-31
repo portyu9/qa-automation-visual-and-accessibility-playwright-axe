@@ -27,7 +27,7 @@ test.describe('component accessibility states', () => {
     await page.getByRole('button', { name: 'Open confirmation' }).click();
     const dialog = page.getByRole('dialog', { name: 'Promote this baseline?' });
     await expect(dialog).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Confirm' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeFocused();
 
     const results = await a11y.scan({ name: 'confirmation-dialog', include: ['dialog'] });
     a11y.assertNoViolations(results);
