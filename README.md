@@ -6,16 +6,16 @@ The repository includes a deterministic local application so framework health ne
 
 ## Quality model
 
-| Validation plane | What it proves | Primary evidence |
-| --- | --- | --- |
-| Framework contracts | Runtime configuration fails early and helpers retain their policy contracts | Validated Playwright JUnit + HTML report |
-| Accessibility rules | Automated WCAG A/AA defects are detected and the harness fails known violations | axe JSON/Markdown attachments + JUnit |
-| Keyboard/focus | Navigation, tabs, dialog focus, skip links, and validation focus remain operable | Playwright assertions |
-| Visual regression | Governed desktop/mobile Chromium states remain within explicit image thresholds | Expected/actual/diff images + HTML report |
-| Cross-browser smoke | Critical navigation works in Chromium, Firefox, and WebKit | Per-engine validated JUnit + HTML report |
-| Static quality | Formatting, linting, and TypeScript contracts remain clean | Prettier, ESLint, TypeScript exit status |
-| Supply chain | Source, dependency, configuration, secret, and dependency-diff risk is gated independently | CodeQL, npm audit JSON, Trivy JSON, Dependency Review |
-| Baseline provenance | Canonical screenshots are generated and self-verified in controlled Linux CI | SHA-associated baseline artifact + verification report |
+| Validation plane    | What it proves                                                                             | Primary evidence                                       |
+| ------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Framework contracts | Runtime configuration fails early and helpers retain their policy contracts                | Validated Playwright JUnit + HTML report               |
+| Accessibility rules | Automated WCAG A/AA defects are detected and the harness fails known violations            | axe JSON/Markdown attachments + JUnit                  |
+| Keyboard/focus      | Navigation, tabs, dialog focus, skip links, and validation focus remain operable           | Playwright assertions                                  |
+| Visual regression   | Governed desktop/mobile Chromium states remain within explicit image thresholds            | Expected/actual/diff images + HTML report              |
+| Cross-browser smoke | Critical navigation works in Chromium, Firefox, and WebKit                                 | Per-engine validated JUnit + HTML report               |
+| Static quality      | Formatting, linting, and TypeScript contracts remain clean                                 | Prettier, ESLint, TypeScript exit status               |
+| Supply chain        | Source, dependency, configuration, secret, and dependency-diff risk is gated independently | CodeQL, npm audit JSON, Trivy JSON, Dependency Review  |
+| Baseline provenance | Canonical screenshots are generated and self-verified in controlled Linux CI               | SHA-associated baseline artifact + verification report |
 
 Automated accessibility analysis is **not** represented as WCAG certification. Screen-reader usability, content meaning, cognitive accessibility, meaningful focus order, zoom/reflow judgment, and other context-dependent criteria still require human review. See [the manual accessibility checklist](docs/manual-accessibility-checklist.md).
 
@@ -48,16 +48,16 @@ The default Playwright configuration starts the deterministic local application 
 
 ### Command reference
 
-| Command | Purpose |
-| --- | --- |
-| `npm run check` | Prettier, ESLint, and TypeScript static gate |
-| `npm run test:framework` | Runtime/helper contract tests without browser-specific product behavior |
-| `npm run test:smoke` | Cross-browser smoke suite |
-| `npm run test:accessibility` | Chromium axe + keyboard/state accessibility suite |
-| `npm run test:visual` | Desktop/mobile Chromium visual comparison |
-| `npm run visual:update` | Generate candidate snapshots locally for investigation |
-| `npm test` | Full configured Playwright project matrix |
-| `npm run report` | Open the latest Playwright HTML report |
+| Command                      | Purpose                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| `npm run check`              | Prettier, ESLint, and TypeScript static gate                            |
+| `npm run test:framework`     | Runtime/helper contract tests without browser-specific product behavior |
+| `npm run test:smoke`         | Cross-browser smoke suite                                               |
+| `npm run test:accessibility` | Chromium axe + keyboard/state accessibility suite                       |
+| `npm run test:visual`        | Desktop/mobile Chromium visual comparison                               |
+| `npm run visual:update`      | Generate candidate snapshots locally for investigation                  |
+| `npm test`                   | Full configured Playwright project matrix                               |
+| `npm run report`             | Open the latest Playwright HTML report                                  |
 
 ## Runtime target policy
 
@@ -67,11 +67,11 @@ The default Playwright configuration starts the deterministic local application 
 BASE_URL=https://qa.example.internal npm run test:accessibility
 ```
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `BASE_URL` | `http://127.0.0.1:4173` | Approved application target |
-| `TEST_PORT` | `4173` | Deterministic local-site port; integer 1–65535 |
-| `CI` | supplied by CI | Enables CI retry/worker/report behavior |
+| Variable    | Default                 | Meaning                                        |
+| ----------- | ----------------------- | ---------------------------------------------- |
+| `BASE_URL`  | `http://127.0.0.1:4173` | Approved application target                    |
+| `TEST_PORT` | `4173`                  | Deterministic local-site port; integer 1–65535 |
+| `CI`        | supplied by CI          | Enables CI retry/worker/report behavior        |
 
 A product integration should add its own authorization, authentication, test-data, and environment-safety policy at the integration boundary; the generic harness does not assume that an arbitrary environment is safe for state-changing tests.
 
