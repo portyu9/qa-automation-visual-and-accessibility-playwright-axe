@@ -7,7 +7,9 @@ function fail(message) {
 const [junitPath, htmlPath, minimumRaw = '1', requiredToken = ''] = process.argv.slice(2);
 
 if (!junitPath || !htmlPath) {
-  fail('usage: node scripts/validate-playwright-evidence.mjs <junit.xml> <report.html> [minimum-executed] [required-token]');
+  fail(
+    'usage: node scripts/validate-playwright-evidence.mjs <junit.xml> <report.html> [minimum-executed] [required-token]',
+  );
 }
 
 const minimumExecuted = Number.parseInt(minimumRaw, 10);
@@ -41,7 +43,9 @@ const skipped = readCount('skipped');
 const executed = tests - skipped;
 
 if (executed < minimumExecuted) {
-  fail(`expected at least ${minimumExecuted} executed tests, found ${executed} (${tests} total, ${skipped} skipped)`);
+  fail(
+    `expected at least ${minimumExecuted} executed tests, found ${executed} (${tests} total, ${skipped} skipped)`,
+  );
 }
 if (failures !== 0 || errors !== 0) {
   fail(`JUnit evidence reports ${failures} failures and ${errors} errors`);
