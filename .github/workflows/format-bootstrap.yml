@@ -28,12 +28,14 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Apply Prettier
         run: npm run format
+      - name: Keep workflow files out of bot-authored formatting commit
+        run: git restore --source=HEAD -- .github/workflows
       - name: Commit formatting
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "$(git status --porcelain)" ]]; then
-            echo "No formatting changes required."
+            echo "No non-workflow formatting changes required."
             exit 0
           fi
           git config user.name "github-actions[bot]"
