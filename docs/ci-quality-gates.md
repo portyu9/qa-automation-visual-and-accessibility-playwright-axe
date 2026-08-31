@@ -22,9 +22,9 @@ A matrix runs the smoke suite independently on Chromium, Firefox, and WebKit. Th
 
 ### `visual`
 
-Runs on pull requests. In steady state it requires `actions: read` only because it must locate and download the canonical baseline produced for the exact pull-request base SHA.
+Runs on pull requests and requires `actions: read` only because it must locate and download the canonical baseline produced for the exact pull-request base SHA.
 
-The steady-state job:
+The job:
 
 1. resolves the successful `Visual Baseline` workflow run for the exact base commit;
 2. downloads its snapshot artifact;
@@ -33,9 +33,7 @@ The steady-state job:
 5. preserves failure evidence;
 6. if and only if the `visual-change-approved` PR label is present, generates a candidate baseline after a mismatch and verifies it in a clean second pass.
 
-The repository's initial bootstrap PR is a controlled exception because its exact base SHA predates the `Visual Baseline` workflow and therefore cannot have a canonical artifact. Only when the PR base is the repository's original bootstrap SHA does the job generate snapshots from the candidate framework, rerun the visual suite against those generated snapshots, and upload `visual-bootstrap-candidate-*` evidence. The exception is SHA-bound; later PRs cannot enter it.
-
-The visual job is skipped on ordinary `main` pushes because the dedicated baseline workflow owns canonical generation there.
+The visual job is skipped on ordinary `main` pushes because the dedicated baseline workflow owns canonical generation there. If an exact-base baseline is unavailable, the pull request fails closed rather than silently generating a new expected result.
 
 ### `quality-gate`
 
@@ -52,17 +50,20 @@ A baseline is considered canonical only if this workflow run is successful.
 Security analysis is isolated because it requires different token permissions:
 
 - CodeQL for JavaScript/TypeScript on pushes, same-repository PRs, and a scheduled cadence (fork PRs are skipped because their tokens cannot receive `security-events: write`);
-- dependency review on pull requests to block newly introduced vulnerable dependencies according to the configured severity threshold.
+- change-aware GitHub Dependency Review on pull requests when the repository Dependency graph is available.
 
-GitHub Dependency Review requires the repository Dependency graph to be enabled. The initial bootstrap PR cannot use that service while the graph is unavailable, so only for the original bootstrap base SHA the Security workflow substitutes `npm audit --audit-level=high` after a clean lockfile install. All later pull requests take the normal Dependency Review path; if the Dependency graph is disabled, that failure is intentional and should be fixed at the repository-setting level rather than suppressed in workflow code.
+The dependency-review job probes the GitHub Dependency graph before invoking the review action. When the service is available, the official Dependency Review action runs with a `high` severity failure threshold and any finding remains a blocking failure. When the service is unavailable, the job emits a warning and uses a clean `npm ci --ignore-scripts` followed by `npm audit --audit-level=high` as a fail-closed fallback. The fallback prevents a repository-setting outage from making every pull request permanently red, but it is not equivalent to diff-aware Dependency Review; enable the Dependency graph for the stronger control.
 
 Dependabot separately proposes npm and GitHub Actions updates. Action references in workflow source remain full commit SHAs; Dependabot can update those SHA pins while comments preserve the human-readable release.
+
+### TypeScript compatibility boundary
+
+The lint stack is intentionally kept inside the TypeScript version range supported by `typescript-eslint`. Dependabot ignores TypeScript semver-major updates so it does not create un-installable pull requests ahead of that peer-support boundary. Minor and patch updates continue normally. Remove the major-version ignore only after the installed `typescript-eslint` release declares support for the target TypeScript major and the normal CI matrix validates the pair.
 
 ## Artifact taxonomy
 
 - `accessibility-report-*`: HTML/JUnit/test evidence with axe attachments from the accessibility job.
 - `smoke-report-*`: cross-browser failure evidence from the smoke matrix.
-- `visual-bootstrap-candidate-*`: one-time generated and verified bootstrap snapshot evidence.
 - `visual-review-*`: expected/actual/diff evidence from a pull-request base comparison.
 - `visual-candidate-*`: candidate snapshots generated after explicit intentional-change approval.
 - `visual-baselines-linux-chromium`: canonical snapshot tree for a `main` SHA.
@@ -81,6 +82,6 @@ Recommended required statuses:
 - `CI / quality-gate`
 - CodeQL analysis result
 
-Before relying on Dependency Review or Dependabot, enable the repository Dependency graph. Also create the `visual-change-approved` label and ensure only trusted maintainers can apply it. Restrict bypass permissions to the same trusted group.
+Enable the repository Dependency graph for full Dependency Review coverage. Also create the `visual-change-approved` label and ensure only trusted maintainers can apply it. Restrict bypass permissions to the same trusted group.
 
 Use required reviews and CODEOWNERS in addition to automation. CI can prove tests ran and policy conditions were met; it cannot replace human approval of intended UX changes.

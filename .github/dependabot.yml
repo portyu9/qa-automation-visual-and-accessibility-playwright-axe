@@ -9,6 +9,10 @@ updates:
       timezone: America/New_York
     open-pull-requests-limit: 10
     versioning-strategy: increase
+    ignore:
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
     groups:
       playwright-and-axe:
         patterns:

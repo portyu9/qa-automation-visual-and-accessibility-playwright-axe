@@ -16,7 +16,6 @@ permissions:
 
 env:
   NODE_VERSION: 24.20.0
-  BOOTSTRAP_BASE_SHA: 711798348fd03841f16500ac5ce35e0cb6fb3fd1
 
 jobs:
   quality:
@@ -123,7 +122,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Retrieve exact-base visual baseline
-        if: env.BASE_SHA != env.BOOTSTRAP_BASE_SHA
         shell: bash
         run: |
           set -euo pipefail
@@ -155,21 +153,7 @@ jobs:
             --dir tests/__screenshots__
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Generate and verify bootstrap visual baseline
-        if: env.BASE_SHA == env.BOOTSTRAP_BASE_SHA
-        run: |
-          npm run visual:update
-          npm run test:visual
-      - name: Upload bootstrap visual evidence
-        if: env.BASE_SHA == env.BOOTSTRAP_BASE_SHA
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: visual-bootstrap-candidate-${{ github.run_id }}
-          path: tests/__screenshots__/
-          if-no-files-found: error
-          retention-days: 30
       - name: Compare against canonical baseline
-        if: env.BASE_SHA != env.BOOTSTRAP_BASE_SHA
         id: compare
         shell: bash
         run: |
@@ -194,13 +178,13 @@ jobs:
 
           echo "Intentional visual change has explicit maintainer approval; verifying candidate baseline."
       - name: Generate approved candidate baseline
-        if: env.BASE_SHA != env.BOOTSTRAP_BASE_SHA && steps.compare.outputs.status != '0' && env.VISUAL_CHANGE_APPROVED == 'true'
+        if: steps.compare.outputs.status != '0' && env.VISUAL_CHANGE_APPROVED == 'true'
         run: |
           rm -rf tests/__screenshots__ test-results playwright-report
           npm run visual:update
           npm run test:visual
       - name: Upload visual review evidence
-        if: always() && env.BASE_SHA != env.BOOTSTRAP_BASE_SHA && steps.compare.outputs.status != '0'
+        if: always() && steps.compare.outputs.status != '0'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: visual-review-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -208,7 +192,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Upload approved candidate baseline
-        if: env.BASE_SHA != env.BOOTSTRAP_BASE_SHA && steps.compare.outputs.status != '0' && env.VISUAL_CHANGE_APPROVED == 'true'
+        if: steps.compare.outputs.status != '0' && env.VISUAL_CHANGE_APPROVED == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: visual-candidate-${{ github.event.pull_request.number }}-${{ github.run_id }}
