@@ -20,7 +20,9 @@ for (const path of walk(workflowsRoot)) {
 
     if (reference.startsWith('docker://')) {
       if (!/@sha256:[0-9a-f]{64}$/iu.test(reference)) {
-        failures.push(`${path}:${index + 1}: Docker action must use an immutable sha256 digest: ${reference}`);
+        failures.push(
+          `${path}:${index + 1}: Docker action must use an immutable sha256 digest: ${reference}`,
+        );
       }
       return;
     }
@@ -28,7 +30,9 @@ for (const path of walk(workflowsRoot)) {
     const separator = reference.lastIndexOf('@');
     const ref = separator >= 0 ? reference.slice(separator + 1) : '';
     if (!/^[0-9a-f]{40}$/iu.test(ref)) {
-      failures.push(`${path}:${index + 1}: external action must use a full 40-character commit SHA: ${reference}`);
+      failures.push(
+        `${path}:${index + 1}: external action must use a full 40-character commit SHA: ${reference}`,
+      );
     }
   });
 }
@@ -39,4 +43,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Workflow pin contract passed: all external actions use immutable commit SHAs or Docker digests.');
+console.log(
+  'Workflow pin contract passed: all external actions use immutable commit SHAs or Docker digests.',
+);
