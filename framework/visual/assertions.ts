@@ -11,8 +11,8 @@ export class VisualAssertions {
     });
   }
 
-  private async defaultMask(): Promise<Locator[]> {
-    const dynamic = this.page.locator(DYNAMIC_CONTENT);
+  private async dynamicMask(root?: Locator): Promise<Locator[]> {
+    const dynamic = root ? root.locator(DYNAMIC_CONTENT) : this.page.locator(DYNAMIC_CONTENT);
     return (await dynamic.count()) > 0 ? [dynamic] : [];
   }
 
@@ -22,7 +22,7 @@ export class VisualAssertions {
       fullPage: options.fullPage ?? true,
       animations: 'disabled',
       caret: 'hide',
-      mask: await this.defaultMask(),
+      mask: await this.dynamicMask(),
     });
   }
 
@@ -31,6 +31,7 @@ export class VisualAssertions {
     await expect(locator).toHaveScreenshot(name, {
       animations: 'disabled',
       caret: 'hide',
+      mask: await this.dynamicMask(locator),
     });
   }
 }
