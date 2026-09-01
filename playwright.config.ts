@@ -19,6 +19,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: runtimeConfig.ci,
   retries: runtimeConfig.ci ? 1 : 0,
+  failOnFlakyTests: runtimeConfig.ci,
   ...ciExecution,
   timeout: 30_000,
   expect: {
