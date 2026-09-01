@@ -49,7 +49,7 @@ for (const markdownPath of walk(root)) {
 
 const readmePath = join(root, 'README.md');
 const readme = readFileSync(readmePath, 'utf8');
-const repositoryMap = readme.match(/## Repository map\s+```text\n([\s\S]*?)```/u)?.[1];
+const repositoryMap = readme.match(/## Repository map[\s\S]*?```text\n([\s\S]*?)```/u)?.[1];
 if (!repositoryMap) {
   fail('README.md: repository map text block is missing');
 } else {
