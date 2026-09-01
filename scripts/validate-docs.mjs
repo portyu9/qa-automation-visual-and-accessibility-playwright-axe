@@ -89,7 +89,9 @@ if (!readme.includes(`Node.js **${nodeVersion} LTS**`)) {
   fail(`README.md: qualified Node version must match .nvmrc (${nodeVersion})`);
 }
 if (!npmVersion || !readme.includes(`npm **${npmVersion}**`)) {
-  fail(`README.md: qualified npm version must match packageManager (${packageJson.packageManager})`);
+  fail(
+    `README.md: qualified npm version must match packageManager (${packageJson.packageManager})`,
+  );
 }
 
 const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
@@ -112,8 +114,12 @@ if (!securityWorkflow.includes('validate-security-evidence.mjs')) {
 if (!ciWorkflow.includes('validate-playwright-evidence.mjs')) {
   fail('.github/workflows/ci.yml: semantic Playwright evidence validator is not executed');
 }
-for (const source of ['scripts/validate-security-evidence.mjs', 'scripts/validate-playwright-evidence.mjs']) {
-  if (!existsSync(join(root, source))) fail(`${source}: required evidence policy source is missing`);
+for (const source of [
+  'scripts/validate-security-evidence.mjs',
+  'scripts/validate-playwright-evidence.mjs',
+]) {
+  if (!existsSync(join(root, source)))
+    fail(`${source}: required evidence policy source is missing`);
 }
 if (!readme.includes('`CI / quality-gate`') || !readme.includes('`Security / security-gate`')) {
   fail('README.md: merge-enforcement guidance must name both stable gate statuses');
