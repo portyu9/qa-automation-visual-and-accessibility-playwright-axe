@@ -96,6 +96,14 @@ if (!npmVersion || !readme.includes(`npm **${npmVersion}**`)) {
 
 const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
 const securityWorkflow = readFileSync(join(root, '.github/workflows/security.yml'), 'utf8');
+const visualBaselineWorkflow = readFileSync(
+  join(root, '.github/workflows/visual-baseline.yml'),
+  'utf8',
+);
+const playwrightEvidencePolicy = readFileSync(
+  join(root, 'scripts/validate-playwright-evidence.mjs'),
+  'utf8',
+);
 if (!ciWorkflow.includes('name: quality-gate')) {
   fail('.github/workflows/ci.yml: stable quality-gate job name is missing');
 }
@@ -113,6 +121,30 @@ if (!securityWorkflow.includes('validate-security-evidence.mjs')) {
 }
 if (!ciWorkflow.includes('validate-playwright-evidence.mjs')) {
   fail('.github/workflows/ci.yml: semantic Playwright evidence validator is not executed');
+}
+const requiredCiEvidenceContracts = [
+  '6 framework/config.contract.spec.ts chromium',
+  '11 accessibility/ chromium',
+  '1 smoke/navigation.spec.ts "${{ matrix.browser }}"',
+  '12 visual/ chromium,mobile-chromium',
+];
+for (const contract of requiredCiEvidenceContracts) {
+  if (!ciWorkflow.includes(contract)) {
+    fail(
+      `.github/workflows/ci.yml: governed Playwright evidence contract is missing: ${contract}`,
+    );
+  }
+}
+if (!visualBaselineWorkflow.includes('12 visual/ chromium,mobile-chromium')) {
+  fail(
+    '.github/workflows/visual-baseline.yml: canonical baseline evidence must bind visual identities to chromium and mobile-chromium',
+  );
+}
+if (!playwrightEvidencePolicy.includes("'visual/'")) {
+  fail('scripts/validate-playwright-evidence.mjs: visual evidence policy is not registered');
+}
+if (!playwrightEvidencePolicy.includes('no governed evidence contract is registered')) {
+  fail('scripts/validate-playwright-evidence.mjs: unknown governed tokens must fail closed');
 }
 for (const source of [
   'scripts/validate-security-evidence.mjs',
