@@ -18,16 +18,22 @@ updates:
         patterns:
           - '@playwright/*'
           - '@axe-core/*'
+        update-types: [minor, patch]
       typescript-linting:
         patterns:
           - 'typescript'
           - 'typescript-eslint'
           - '@eslint/*'
           - 'eslint'
+        update-types: [minor, patch]
       formatting-and-types:
         patterns:
           - 'prettier'
           - '@types/*'
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps
+      include: scope
 
   - package-ecosystem: github-actions
     directory: /
@@ -37,3 +43,10 @@ updates:
       time: '09:20'
       timezone: America/New_York
     open-pull-requests-limit: 10
+    groups:
+      routine-actions:
+        patterns: ['*']
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps
+      include: scope
