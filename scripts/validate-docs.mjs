@@ -130,9 +130,7 @@ const requiredCiEvidenceContracts = [
 ];
 for (const contract of requiredCiEvidenceContracts) {
   if (!ciWorkflow.includes(contract)) {
-    fail(
-      `.github/workflows/ci.yml: governed Playwright evidence contract is missing: ${contract}`,
-    );
+    fail(`.github/workflows/ci.yml: governed Playwright evidence contract is missing: ${contract}`);
   }
 }
 if (!visualBaselineWorkflow.includes('12 visual/ chromium,mobile-chromium')) {
