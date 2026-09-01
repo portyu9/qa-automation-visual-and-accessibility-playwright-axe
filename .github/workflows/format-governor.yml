@@ -1,0 +1,29 @@
+name: Format governor
+on:
+  push:
+    branches:
+      - automation/dependabot-governor
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: automation/dependabot-governor
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prettier --write .github/workflows/dependabot-governor.yml
+      - run: npx prettier --check .github/workflows/dependabot-governor.yml
+      - run: |
+          git rm .github/workflows/format-governor.yml
+          git add .github/workflows/dependabot-governor.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'style: format Dependabot governor'
+          git push
