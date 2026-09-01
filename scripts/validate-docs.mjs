@@ -84,14 +84,11 @@ if (mermaidBlocks.length === 0) {
 
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const nodeVersion = readFileSync(join(root, '.nvmrc'), 'utf8').trim();
-const npmVersion = String(packageJson.packageManager ?? '').replace(/^npm@/u, '');
-if (!readme.includes(`Node.js **${nodeVersion} LTS**`)) {
-  fail(`README.md: qualified Node version must match .nvmrc (${nodeVersion})`);
+if (!nodeVersion || !String(packageJson.packageManager ?? '').startsWith('npm@')) {
+  fail('repository toolchain pins must remain machine-readable in .nvmrc and package.json');
 }
-if (!npmVersion || !readme.includes(`npm **${npmVersion}**`)) {
-  fail(
-    `README.md: qualified npm version must match packageManager (${packageJson.packageManager})`,
-  );
+if (!readme.includes('Node.js') || !readme.includes('npm')) {
+  fail('README.md: versionless Node.js and npm toolchain documentation is required');
 }
 
 const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
@@ -162,5 +159,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  'Documentation contract passed: local links, workflow badges, Mermaid architecture, toolchain claims, evidence policy, gate names, and directory-only repository map are consistent.',
+  'Documentation contract passed: local links, workflow badges, Mermaid architecture, versionless toolchain claims, evidence policy, gate names, and directory-only repository map are consistent.',
 );

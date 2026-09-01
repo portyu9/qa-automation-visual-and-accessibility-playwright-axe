@@ -4,11 +4,11 @@
 [![Security](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/security.yml/badge.svg)](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/security.yml)
 [![Visual Baseline](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/visual-baseline.yml/badge.svg)](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/visual-baseline.yml)
 
-[![Playwright](https://img.shields.io/badge/Playwright-1.62.1-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
-[![axe-core](https://img.shields.io/badge/axe--core-4.13.0-005A9C)](https://github.com/dequelabs/axe-core)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.0.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-24.20.0_LTS-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![WCAG](https://img.shields.io/badge/WCAG-2.0%2F2.1%2F2.2_A%2FAA-7C3AED)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+[![Playwright](https://img.shields.io/badge/Playwright-browser-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![axe-core](https://img.shields.io/badge/axe--core-accessibility-005A9C)](https://github.com/dequelabs/axe-core)
+[![TypeScript](https://img.shields.io/badge/TypeScript-language-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-runtime-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![WCAG](https://img.shields.io/badge/WCAG-A%2FAA-7C3AED)](https://www.w3.org/WAI/standards-guidelines/wcag/)
 [![Baseline Governance](https://img.shields.io/badge/Baselines-exact--SHA-C2410C)](docs/adr-001-visual-baseline-artifacts.md)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI-2088FF?logo=githubactions&logoColor=white)](https://github.com/features/actions)
 [![Trivy](https://img.shields.io/badge/Trivy-security-1904DA?logo=trivy&logoColor=white)](https://trivy.dev/)
@@ -142,10 +142,10 @@ A global tolerance increase is the broadest possible suppression. It should be t
 
 ## Quick start
 
-The qualified toolchain is Node.js **24.20.0 LTS** with npm **11.19.1**. `.nvmrc` pins Node and `packageManager` pins npm.
+The qualified toolchain is Node.js with npm. `.nvmrc` pins Node and `packageManager` pins npm.
 
 ```bash
-npm install --global --ignore-scripts npm@11.19.1
+npm install --global --ignore-scripts npm
 npm ci --ignore-scripts
 npx playwright install --with-deps
 npm run check
@@ -185,7 +185,7 @@ A product integration should add authorization, authentication, test-data, tenan
 
 ## Accessibility policy
 
-The shared auditor runs WCAG 2.0/2.1/2.2 A/AA tags and explicitly enables axe's `target-size` rule. Scans can target the whole document or a named component/state. Each scan attaches raw JSON and a Markdown summary containing rule IDs, impact, help links, affected selectors, exclusion metadata, and incomplete checks requiring human review.
+The shared auditor runs WCAG A/AA tags and explicitly enables axe's `target-size` rule. Scans can target the whole document or a named component/state. Each scan attaches raw JSON and a Markdown summary containing rule IDs, impact, help links, affected selectors, exclusion metadata, and incomplete checks requiring human review.
 
 Three boundaries remain explicit:
 
