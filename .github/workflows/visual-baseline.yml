@@ -46,7 +46,7 @@ jobs:
       - name: Verify canonical snapshots
         run: npm run test:visual
       - name: Validate visual execution evidence
-        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 12 visual/
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 12 visual/ chromium,mobile-chromium
       - name: Assert baseline set is meaningful
         shell: bash
         run: |
