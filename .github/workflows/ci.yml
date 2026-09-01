@@ -44,7 +44,7 @@ jobs:
       - name: Run framework contract gate
         run: npm run test:framework
       - name: Validate framework execution evidence
-        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 4 framework/config.contract.spec.ts
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 6 framework/config.contract.spec.ts chromium
       - name: Audit dependency graph
         run: npm audit --audit-level=high
       - name: Upload framework evidence
@@ -83,7 +83,7 @@ jobs:
       - name: Run accessibility gate
         run: npm run test:accessibility
       - name: Validate accessibility execution evidence
-        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 11 accessibility/
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 11 accessibility/ chromium
       - name: Upload accessibility evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -124,7 +124,7 @@ jobs:
       - name: Run smoke suite
         run: npm run test:smoke -- --project="${{ matrix.browser }}"
       - name: Validate smoke execution evidence
-        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 1 smoke/navigation.spec.ts
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 1 smoke/navigation.spec.ts "${{ matrix.browser }}"
       - name: Upload smoke evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -228,7 +228,7 @@ jobs:
           npm run test:visual
       - name: Validate successful visual execution evidence
         if: steps.compare.outputs.status == '0' || env.VISUAL_CHANGE_APPROVED == 'true'
-        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 12 visual/
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 12 visual/ chromium,mobile-chromium
       - name: Upload visual comparison evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
