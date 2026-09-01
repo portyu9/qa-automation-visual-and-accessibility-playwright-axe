@@ -30,6 +30,7 @@ The default target is a deterministic local application owned by this repository
 
 High-confidence browser quality depends on separating **what is observed** from **what can legitimately judge it**. This framework keeps distinct oracles because rendering, semantic accessibility, keyboard interaction, cross-browser behavior, and supply-chain risk are different failure domains.
 
+<!-- prettier-ignore -->
 | Validation plane | Primary oracle | What it can prove | What it deliberately does not claim |
 | --- | --- | --- | --- |
 | Framework contracts | TypeScript + Playwright contract tests | Configuration, helpers, policy boundaries and fixture behavior | Product correctness |
@@ -102,6 +103,7 @@ For the deeper layer model and trust boundaries, see [Architecture](docs/archite
 
 ## Engineering invariants
 
+<!-- prettier-ignore -->
 | Concern | Framework contract |
 | --- | --- |
 | Determinism | Locale, timezone, color scheme, reduced motion, font readiness, service-worker behavior, fixture data and dynamic masks are controlled before tolerance is widened. |
@@ -122,6 +124,7 @@ For the deeper layer model and trust boundaries, see [Architecture](docs/archite
 
 Visual regression becomes unreliable when environmental noise is mistaken for product change. The framework therefore treats screenshot stability as an input-control problem before treating it as a matcher-threshold problem.
 
+<!-- prettier-ignore -->
 | Source of visual entropy | Framework response |
 | --- | --- |
 | Fonts | Wait for `document.fonts.ready` before comparison |
@@ -151,6 +154,7 @@ npm test
 
 The default Playwright configuration starts the deterministic local application automatically.
 
+<!-- prettier-ignore -->
 | Command | Purpose |
 | --- | --- |
 | `npm run check` | Formatting, lint, types, documentation and immutable workflow-pin contracts |
@@ -170,6 +174,7 @@ The default Playwright configuration starts the deterministic local application 
 BASE_URL=https://qa.example.internal npm run test:accessibility
 ```
 
+<!-- prettier-ignore -->
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `BASE_URL` | `http://127.0.0.1:4173` | Approved application target |
@@ -254,6 +259,7 @@ The separate Visual Baseline workflow owns canonical baseline generation, immedi
 
 ## Failure interpretation
 
+<!-- prettier-ignore -->
 | Signal | First interpretation |
 | --- | --- |
 | Framework contract failure | Harness/configuration policy changed or regressed |
