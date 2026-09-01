@@ -90,10 +90,7 @@ const governedByToken = new Map([
         'integration/combined-quality.spec.ts',
         'interactive preview state satisfies accessibility and visual contracts together',
       ],
-      [
-        'visual/components.visual.spec.ts',
-        'component laboratory matches its default baseline',
-      ],
+      ['visual/components.visual.spec.ts', 'component laboratory matches its default baseline'],
       ['visual/components.visual.spec.ts', 'dialog open state matches its baseline'],
       ['visual/components.visual.spec.ts', 'validation error state matches its baseline'],
       ['visual/home.visual.spec.ts', 'overview page matches the governed visual baseline'],
