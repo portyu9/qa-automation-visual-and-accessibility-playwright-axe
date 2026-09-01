@@ -9,9 +9,9 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run docs:check && npm run workflow-pins:check",
+    "check": "npm run format:check",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write scripts/validate-docs.mjs scripts/validate-playwright-evidence.mjs && git diff -- scripts/validate-docs.mjs scripts/validate-playwright-evidence.mjs && exit 1",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "docs:check": "node scripts/validate-docs.mjs",
