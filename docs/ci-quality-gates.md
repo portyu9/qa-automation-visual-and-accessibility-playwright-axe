@@ -4,6 +4,8 @@
 
 GitHub-hosted jobs use Node.js 24.20.0 LTS and explicitly qualify npm 11.19.1 before installing the repository. Dependency installation uses `npm ci --ignore-scripts`; browser binaries are installed explicitly through Playwright so dependency lifecycle scripts do not become an implicit execution boundary.
 
+The primary quality lane also replaces the installed Node declaration package ephemerally with the qualified Node 24 `@types/node` line before TypeScript validation. This prevents a newer declaration major in the locked developer toolchain from widening the compile-time API surface beyond the Node 24 runtime contract. The replacement is CI-local, does not rewrite `package-lock.json`, and is followed by an exact version assertion.
+
 ## CI workflow
 
 ### `quality`
@@ -12,6 +14,7 @@ The fast quality lane runs before browser-heavy coverage can be considered healt
 
 - exact npm runtime check;
 - lockfile install with lifecycle scripts disabled;
+- exact Node 24 declaration-surface qualification;
 - Prettier check;
 - ESLint with zero warnings;
 - TypeScript `--noEmit` check;
@@ -20,6 +23,8 @@ The fast quality lane runs before browser-heavy coverage can be considered healt
 - `npm audit --audit-level=high`.
 
 Framework evidence is retained for triage. The test command remains authoritative; artifact/report generation cannot turn a failed command into success.
+
+Playwright retains one CI retry for diagnostics and trace capture, but `failOnFlakyTests` is enabled whenever CI mode is active. A test that fails its first attempt and passes only on retry therefore remains a failed CI signal instead of being normalized into green evidence.
 
 ### `accessibility`
 
