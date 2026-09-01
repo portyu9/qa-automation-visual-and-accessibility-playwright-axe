@@ -72,14 +72,19 @@ function validateTrivy(path) {
   }
 
   const npmResults = report.Results.filter(
-    (result) => result?.Type === 'npm' || String(result?.Target ?? '').includes('package-lock.json'),
+    (result) =>
+      result?.Type === 'npm' || String(result?.Target ?? '').includes('package-lock.json'),
   );
   if (npmResults.length === 0) {
     fail('Trivy evidence contains no attributed npm/package-lock result');
   }
 
-  const packages = npmResults.flatMap((result) => (Array.isArray(result.Packages) ? result.Packages : []));
-  const lockPackageCount = Object.keys(lock.packages).filter((key) => key.startsWith('node_modules/')).length;
+  const packages = npmResults.flatMap((result) =>
+    Array.isArray(result.Packages) ? result.Packages : [],
+  );
+  const lockPackageCount = Object.keys(lock.packages).filter((key) =>
+    key.startsWith('node_modules/'),
+  ).length;
   const minimumInventory = Math.max(60, Math.floor(lockPackageCount * 0.7));
   if (packages.length < minimumInventory) {
     fail(
