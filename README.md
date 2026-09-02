@@ -1,4 +1,4 @@
-# Visual & Accessibility QA Automation — Playwright + axe-core
+# Visual & Accessibility Quality Engineering Framework — Playwright + axe-core
 
 [![CI](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/ci.yml/badge.svg)](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/ci.yml)
 [![Security](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/security.yml/badge.svg)](https://github.com/portyu9/qa-automation-visual-and-accessibility-playwright-axe/actions/workflows/security.yml)
