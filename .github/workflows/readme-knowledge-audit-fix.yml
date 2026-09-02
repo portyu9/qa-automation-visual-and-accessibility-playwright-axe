@@ -1,0 +1,38 @@
+name: readme-knowledge-audit-fix
+
+on:
+  push:
+    branches: [docs/readme-knowledge-audit]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: docs/readme-knowledge-audit
+      - name: Refine README title
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('README.md')
+          text = p.read_text(encoding='utf-8')
+          old = '# Visual & Accessibility QA Automation — Playwright + axe-core'
+          new = '# Visual & Accessibility Quality Engineering Framework — Playwright + axe-core'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one README title, found {text.count(old)}')
+          p.write_text(text.replace(old, new), encoding='utf-8')
+      - name: Commit branch-only documentation correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/readme-knowledge-audit-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add README.md .github/workflows/readme-knowledge-audit-fix.yml
+          git commit -m 'docs: align visual accessibility framework title'
+          git push origin HEAD:docs/readme-knowledge-audit
