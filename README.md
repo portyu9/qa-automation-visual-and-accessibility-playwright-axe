@@ -246,7 +246,7 @@ The dedicated `Security` workflow contains independent controls:
 
 - CodeQL `security-extended` analysis for JavaScript/TypeScript;
 - a clean script-disabled npm install followed by HIGH/CRITICAL advisory gating with machine-readable evidence;
-- Trivy filesystem scanning for fixed HIGH/CRITICAL vulnerabilities, supported misconfiguration, and committed-secret findings;
+- Trivy filesystem scanning for fixable HIGH/CRITICAL vulnerabilities, supported misconfiguration, and committed-secret findings;
 - semantic Trivy evidence validation requiring npm `package-lock.json` attribution with real package name/version identities;
 - pull-request Dependency Review when GitHub Dependency graph is available;
 - `security-gate` — stable aggregation of event-applicable security planes.
