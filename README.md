@@ -41,7 +41,7 @@ High-confidence browser quality depends on separating **what is observed** from 
 | Baseline provenance | Controlled Visual Baseline workflow | Canonical pixels correspond to a successful exact `main` SHA | Approval of the underlying design |
 | Evidence semantics | JUnit/HTML/baseline validators | Intended suites, hosts and artifacts actually executed/appeared | Application correctness by itself |
 | Static quality | Prettier, ESLint, TypeScript, docs and workflow-pin contracts | Repository policy remains internally consistent | Runtime behavior |
-| Supply chain | CodeQL, npm Audit, Trivy, Dependency Review | Independent source/dependency/configuration/secret risk signals | Absence of every possible vulnerability |
+| Supply chain | Supply-chain policy + CodeQL, npm Audit, Trivy, Dependency Review | Independent workflow/source/dependency/configuration/secret risk signals | Absence of every possible vulnerability |
 
 The value is in the **intersection of evidence**. A page can be visually stable and inaccessible, semantically valid and visually broken, axe-clean but keyboard-inoperable, or cross-browser functional while only one engine exposes a layout defect. Those conditions should remain separately diagnosable.
 
@@ -71,7 +71,8 @@ flowchart LR
     EVIDENCE --> QG
     DIFF --> QG
 
-    SAST[CodeQL] --> SG[Security / security-gate]
+    SUPPLY[Supply-chain policy] --> SG[Security / security-gate]
+    SAST[CodeQL] --> SG
     AUDIT[npm Audit] --> SG
     TRIVY[Trivy] --> SG
     REVIEW[Dependency Review when available] --> SG
@@ -88,7 +89,7 @@ flowchart LR
     class FW,A11Y,AXE,SMOKE,VISUAL quality;
     class BASE,DIFF baseline;
     class EVIDENCE,QG,RESULT evidence;
-    class STATIC,SAST,AUDIT,TRIVY,REVIEW,SG security;
+    class STATIC,SUPPLY,SAST,AUDIT,TRIVY,REVIEW,SG security;
     linkStyle default stroke:#57606a,stroke-width:1.4px;
 ```
 
@@ -116,7 +117,7 @@ For the deeper layer model and trust boundaries, see [Architecture](docs/archite
 | Skip semantics | Skipped tests do not inflate execution evidence. |
 | Browser policy | Chromium owns canonical visual baselines; Firefox and WebKit provide functional compatibility evidence. |
 | Install trust | CI uses `npm ci --ignore-scripts`; browser installation is an explicit reviewable step. |
-| Supply chain | CodeQL, npm Audit, Trivy and Dependency Review remain independent controls. |
+| Supply chain | Workflow policy, CodeQL, npm Audit, Trivy and Dependency Review remain independent controls. |
 | Workflow integrity | Third-party Actions are full-SHA pinned and validated by repository policy. |
 | Least privilege | Workflows start read-only and grant additional permissions only where required. |
 
