@@ -146,7 +146,7 @@ A global tolerance increase is the broadest possible suppression. It should be t
 The qualified toolchain is Node.js with npm. `.nvmrc` pins Node and `packageManager` pins npm.
 
 ```bash
-npm install --global --ignore-scripts npm
+npm install --global --ignore-scripts npm@11.19.1
 npm ci --ignore-scripts
 npx playwright install --with-deps
 npm run check
