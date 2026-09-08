@@ -97,7 +97,9 @@ if (packageJson.scripts?.['runtime-policy:check'] !== 'node scripts/validate-run
   fail('package.json: runtime-policy:check must execute the repository runtime policy validator');
 }
 if (!String(packageJson.scripts?.check ?? '').includes('npm run runtime-policy:check')) {
-  fail('package.json: check must retain runtime-policy:check in the governed local/CI quality surface');
+  fail(
+    'package.json: check must retain runtime-policy:check in the governed local/CI quality surface',
+  );
 }
 
 const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');

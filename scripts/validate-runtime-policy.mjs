@@ -43,7 +43,8 @@ for (const [name, workflow] of Object.entries(workflows)) {
   }
 
   const setupNodeCount = [...workflow.matchAll(/uses: actions\/setup-node@/gu)].length;
-  const governedNodeCount = [...workflow.matchAll(/node-version: \$\{\{ env\.NODE_VERSION \}\}/gu)].length;
+  const governedNodeCount = [...workflow.matchAll(/node-version: \$\{\{ env\.NODE_VERSION \}\}/gu)]
+    .length;
   if (setupNodeCount !== governedNodeCount) {
     fail(
       `${name} must route every actions/setup-node invocation through env.NODE_VERSION; ` +
