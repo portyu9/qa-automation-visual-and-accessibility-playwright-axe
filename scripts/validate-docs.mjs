@@ -90,6 +90,17 @@ if (!nodeVersion || !String(packageJson.packageManager ?? '').startsWith('npm@')
 if (!readme.includes('Node.js') || !readme.includes('npm')) {
   fail('README.md: versionless Node.js and npm toolchain documentation is required');
 }
+if (!existsSync(join(root, 'scripts/validate-runtime-policy.mjs'))) {
+  fail('scripts/validate-runtime-policy.mjs: runtime policy source is missing');
+}
+if (packageJson.scripts?.['runtime-policy:check'] !== 'node scripts/validate-runtime-policy.mjs') {
+  fail('package.json: runtime-policy:check must execute the repository runtime policy validator');
+}
+if (!String(packageJson.scripts?.check ?? '').includes('npm run runtime-policy:check')) {
+  fail(
+    'package.json: check must retain runtime-policy:check in the governed local/CI quality surface',
+  );
+}
 
 const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
 const securityWorkflow = readFileSync(join(root, '.github/workflows/security.yml'), 'utf8');
@@ -159,5 +170,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  'Documentation contract passed: local links, workflow badges, Mermaid architecture, versionless toolchain claims, evidence policy, gate names, and directory-only repository map are consistent.',
+  'Documentation contract passed: local links, workflow badges, Mermaid architecture, versionless toolchain claims, runtime-policy wiring, evidence policy, gate names, and directory-only repository map are consistent.',
 );

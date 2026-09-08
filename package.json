@@ -9,11 +9,12 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run docs:check && npm run workflow-pins:check",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run runtime-policy:check && npm run docs:check && npm run workflow-pins:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
+    "runtime-policy:check": "node scripts/validate-runtime-policy.mjs",
     "docs:check": "node scripts/validate-docs.mjs",
     "workflow-pins:check": "node scripts/validate-workflow-pins.mjs",
     "test": "playwright test",
