@@ -1,0 +1,65 @@
+name: peer-lock-refresh
+
+on:
+  push:
+    branches: [fix/playwright-core-peer-anchor]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor == 'portyu9'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated remediation branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/playwright-core-peer-anchor
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+      - name: Regenerate lock with qualified npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes npm@11.19.1 install --package-lock-only --ignore-scripts
+          node - <<'NODE'
+          const pkg = require('./package.json');
+          const lock = require('./package-lock.json');
+          if (pkg.devDependencies['playwright-core'] !== '1.62.1') throw new Error('package peer anchor mismatch');
+          if (lock.packages[''].devDependencies['playwright-core'] !== '1.62.1') throw new Error('lock peer anchor mismatch');
+          NODE
+      - name: Prove Node-type binding preserves Playwright peer graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes npm@11.19.1 ci --ignore-scripts
+          before="$(node -p "require('./node_modules/playwright-core/package.json').version")"
+          [[ "$before" == '1.62.1' ]]
+          npx --yes npm@11.19.1 install --no-save --ignore-scripts --package-lock=false "@types/node@24.13.3"
+          after="$(node -p "require('./node_modules/playwright-core/package.json').version")"
+          [[ "$after" == "$before" ]]
+          [[ "$(node -p "require('./node_modules/@types/node/package.json').version")" == '24.13.3' ]]
+          npx --yes npm@11.19.1 run typecheck
+      - name: Commit generated lock only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'fix/playwright-core-peer-anchor'
+          unexpected="$(git status --short | grep -vE '^ M package-lock\.json$' || true)"
+          if [[ -n "$unexpected" ]]; then
+            printf 'Unexpected worktree changes:\n%s\n' "$unexpected" >&2
+            exit 1
+          fi
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Lock is already synchronized.'
+            exit 0
+          fi
+          git config user.name 'portyu9'
+          git config user.email '35150859+portyu9@users.noreply.github.com'
+          git commit -m 'build: lock Playwright peer anchor'
+          git push origin HEAD:"$GITHUB_REF_NAME"
