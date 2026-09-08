@@ -44,7 +44,9 @@ if (rootLock.devDependencies?.['@types/node'] !== nodeTypes) {
   fail('package-lock.json root @types/node declaration must match package.json exactly');
 }
 if (lockedNodeTypes !== nodeTypes) {
-  fail(`package-lock.json installed @types/node must equal the committed declaration pin ${nodeTypes}`);
+  fail(
+    `package-lock.json installed @types/node must equal the committed declaration pin ${nodeTypes}`,
+  );
 }
 
 const npmVersion = npmMatch?.[1];
@@ -71,10 +73,18 @@ const ci = workflows['ci.yml'];
 if (!ci.includes(`NODE_TYPES_VERSION: ${nodeTypes}`)) {
   fail(`ci.yml must bind NODE_TYPES_VERSION to committed @types/node (${nodeTypes})`);
 }
-if (ci.includes('npm install --no-save --ignore-scripts --package-lock=false "@types/node@${NODE_TYPES_VERSION}"')) {
+if (
+  ci.includes(
+    'npm install --no-save --ignore-scripts --package-lock=false "@types/node@${NODE_TYPES_VERSION}"',
+  )
+) {
   fail('ci.yml must not replace the committed Node declaration graph after npm ci');
 }
-if (!ci.includes('[[ "$(node -p "require(\'./node_modules/@types/node/package.json\').version")" == "$NODE_TYPES_VERSION" ]]')) {
+if (
+  !ci.includes(
+    '[[ "$(node -p "require(\'./node_modules/@types/node/package.json\').version")" == "$NODE_TYPES_VERSION" ]]',
+  )
+) {
   fail('ci.yml must verify the installed @types/node version from the committed dependency graph');
 }
 
