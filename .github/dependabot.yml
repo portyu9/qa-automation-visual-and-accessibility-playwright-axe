@@ -20,6 +20,7 @@ updates:
       playwright-and-axe:
         patterns:
           - '@playwright/*'
+          - 'playwright-core'
           - '@axe-core/*'
         update-types: [minor, patch]
       typescript-linting:
