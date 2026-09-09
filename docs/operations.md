@@ -26,6 +26,7 @@ npm test
 
 The default Playwright configuration starts the deterministic local application automatically.
 
+<!-- prettier-ignore -->
 | Command | Purpose |
 | --- | --- |
 | `npm run check` | Format, lint, types, runtime/docs/workflow-pin policy |
@@ -45,6 +46,7 @@ The default Playwright configuration starts the deterministic local application 
 BASE_URL=https://qa.example.internal npm run test:accessibility
 ```
 
+<!-- prettier-ignore -->
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `BASE_URL` | `http://127.0.0.1:4173` | Approved application target |
@@ -129,6 +131,7 @@ For merge-enforcement naming, see the root README and [`ci-quality-gates.md`](ci
 
 ## Confidence boundaries
 
+<!-- prettier-ignore -->
 | Signal | Confidence gained | Deliberate limit |
 | --- | --- | --- |
 | Canonical baseline | Expected pixels are traceable to accepted repository history | Does not prove design correctness/usability/accessibility |
@@ -152,6 +155,7 @@ The TypeScript major line remains constrained until the installed `typescript-es
 
 ## Failure triage
 
+<!-- prettier-ignore -->
 | Signal | First interpretation |
 | --- | --- |
 | Framework contract | Harness/configuration policy |
