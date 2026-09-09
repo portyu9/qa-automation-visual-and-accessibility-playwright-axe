@@ -28,41 +28,25 @@ Pure framework contracts may import Playwright's base `test` directly when brows
 
 ### Accessibility domain
 
-The accessibility policy owns the WCAG tag set and exclusion contract. The auditor:
+The accessibility policy owns the WCAG tag set and exclusion contract. The auditor validates exclusions, configures the governed axe rule scope, applies regions/time-bounded exclusions, runs the scan, attaches JSON/Markdown evidence, returns machine-readable results, and throws concise attributable failures when violations remain.
 
-1. validates exclusions before execution;
-2. configures axe for the repository's WCAG A/AA tags;
-3. explicitly enables target-size coverage;
-4. applies include regions and time-bounded exclusions;
-5. runs the scan;
-6. attaches JSON and Markdown evidence to Playwright;
-7. returns machine-readable results for test-specific assertions;
-8. throws a concise failure containing rule IDs, affected targets, impact, and help links when violations remain.
-
-Keyboard/focus expectations stay in tests because they encode interaction semantics that axe cannot infer reliably. Incomplete axe checks remain visible in evidence and require human review rather than being silently treated as passes.
+Keyboard/focus expectations stay in tests because they encode interaction semantics axe cannot infer reliably. Incomplete axe checks remain visible in evidence and require human review rather than being silently treated as passes.
 
 ### Visual domain
 
-The visual helper waits for browser font readiness and masks only elements carrying the explicit dynamic-content contract. The project fixture emulates reduced motion; Playwright also disables animations and hides carets during screenshot comparison.
+The visual helper waits for font readiness and masks only elements carrying the explicit dynamic-content contract. Reduced motion, animation disabling, caret hiding, deterministic fixture data, and controlled project context reduce entropy before tolerance is widened.
 
-Playwright's native matcher owns capture, baseline comparison, diff generation, and failure artifacts. Global tolerances remain intentionally narrow. A noisy test should first be stabilized through deterministic data/state/fonts/motion or a targeted mask; widening suite-wide tolerances is a last resort.
+Playwright's native matcher owns capture, baseline comparison, diff generation, and failure artifacts. Global tolerances remain intentionally narrow.
 
 ### Evidence validation
 
-Playwright command success is necessary but not sufficient evidence that the intended suite actually ran. `scripts/validate-playwright-evidence.mjs` validates the JUnit root, numeric result metadata, minimum executed-test floors, intended-suite tokens, zero recorded errors/failures, and a non-trivial HTML report.
+Playwright command success is necessary but not sufficient evidence that the intended suite actually ran. `scripts/validate-playwright-evidence.mjs` validates JUnit structure/result metadata, minimum executed-test floors, intended-suite tokens, governed project hosts, zero recorded errors/failures, and non-trivial HTML evidence.
 
-This catches discovery regressions such as a renamed directory, an accidentally empty matrix slice, or a reporter failure that would otherwise leave a superficially green job with weak proof.
+This catches discovery regressions, empty matrix slices, or reporter failures that could otherwise leave a superficially green job with weak proof.
 
 ### Reference application
 
-The dependency-free local site is a self-test target, not a substitute for a system under test. It contains:
-
-- skip navigation and named landmarks;
-- responsive deterministic layout;
-- keyboard-operable tabs;
-- a native dialog and focus transition;
-- a validation/error state;
-- an intentionally invalid accessibility fixture that proves the harness detects known defects.
+The dependency-free local site is a self-test target, not a substitute for a system under test. It contains skip navigation/landmarks, deterministic responsive layout, keyboard-operable tabs, dialog/focus transitions, validation state, and intentionally invalid accessibility fixtures that prove the harness can detect known defects.
 
 ### CI orchestration
 
@@ -72,34 +56,52 @@ CI separates concerns:
 - accessibility: Chromium axe/state coverage plus validated evidence;
 - smoke: Chromium/Firefox/WebKit compatibility plus per-engine validated evidence;
 - visual: exact-base-SHA baseline retrieval, comparison, approval policy, candidate verification, and comparison evidence;
-- quality-gate: stable CI aggregation;
+- `quality-gate`: stable CI aggregation;
 - Visual Baseline: canonical baseline generation/verification on `main`;
-- Security: CodeQL, npm advisory evidence, Trivy repository scanning, Dependency Review, and stable security aggregation.
+- Security: CodeQL, npm advisory evidence, Trivy, Dependency Review, and stable security aggregation.
 
-The stable `quality-gate` and `security-gate` jobs are intended branch-rule interfaces. Internal matrices and implementation jobs can evolve without forcing repository protection settings to follow every detail.
+The stable `quality-gate` and `security-gate` jobs are intended branch-rule interfaces. Internal matrices can evolve without forcing protection settings to follow implementation detail.
 
 ## Data flow
 
-```text
-main commit
-   │
-   ├── CI ──> quality / accessibility / cross-browser evidence
-   │
-   ├── Security ──> source / dependency / configuration / secret evidence
-   │
-   └── Visual Baseline ──> canonical snapshot artifact keyed by run + commit SHA
-                                  │
-PR base SHA ──> locate exact successful baseline run ──> download snapshots
-                                                       │
-PR head ──> render same states ──> Playwright compare ─┼─> pass + validated evidence
-                                                       └─> preserved diff evidence
-                                                                  │
-                                                  explicit maintainer approval
-                                                                  │
-                                                       candidate regenerate + verify
+```mermaid
+flowchart LR
+    MAIN[main commit] --> CI[CI quality planes]
+    MAIN --> SEC[Security workflow]
+    MAIN --> VB[Visual Baseline workflow]
+    VB --> BASE[Canonical snapshots keyed by commit SHA]
+
+    PRBASE[PR exact base SHA] --> RESOLVE[Resolve successful exact-base baseline]
+    BASE --> RESOLVE
+    RESOLVE --> DOWNLOAD[Download canonical snapshots]
+
+    PRHEAD[PR head] --> RENDER[Render governed states]
+    DOWNLOAD --> COMPARE[Playwright pixel comparison]
+    RENDER --> COMPARE
+    COMPARE -->|match| EVIDENCE[Validated comparison evidence]
+    COMPARE -->|mismatch| DIFF[Preserved expected · actual · diff]
+    DIFF --> APPROVAL[Explicit maintainer approval]
+    APPROVAL --> CANDIDATE[Generate + verify candidate]
+
+    CI --> RESULT[Auditable quality conclusion]
+    SEC --> RESULT
+    EVIDENCE --> RESULT
+    CANDIDATE --> RESULT
+
+    classDef entry fill:#DDF4FF,stroke:#0969DA,color:#24292F,stroke-width:1.5px;
+    classDef policy fill:#FBEFFF,stroke:#8250DF,color:#24292F,stroke-width:1.5px;
+    classDef baseline fill:#FFF8C5,stroke:#9A6700,color:#24292F,stroke-width:1.5px;
+    classDef evidence fill:#DAFBE1,stroke:#1A7F37,color:#24292F,stroke-width:1.5px;
+    classDef failure fill:#FFEBE9,stroke:#CF222E,color:#24292F,stroke-width:1.5px;
+    class MAIN,PRBASE,PRHEAD entry;
+    class CI,SEC,RESOLVE,RENDER,COMPARE,APPROVAL policy;
+    class VB,BASE,DOWNLOAD,CANDIDATE baseline;
+    class EVIDENCE,RESULT evidence;
+    class DIFF failure;
+    linkStyle default stroke:#57606A,stroke-width:1.4px;
 ```
 
-Intentional visual changes remain auditable because the initial comparison occurs before candidate generation and its mismatch evidence is retained separately.
+Intentional visual changes remain auditable because the initial comparison occurs before candidate generation and mismatch evidence is retained separately.
 
 ## Trust boundaries
 
@@ -109,8 +111,8 @@ Intentional visual changes remain auditable because the initial comparison occur
 - browser jobs are read-only with respect to repository contents;
 - CodeQL alone receives `security-events: write`;
 - PR baseline retrieval alone receives `actions: read`;
-- Dependency Review availability is treated as a distinct GitHub service dependency;
-- repository rules must require the stable CI/security aggregators for workflow success to become a merge precondition.
+- Dependency Review availability is a distinct GitHub service dependency;
+- repository rules should require the stable CI/security aggregators for workflow success to become a merge precondition.
 
 ## Extension boundaries
 
