@@ -24,6 +24,7 @@ A TypeScript framework combining **Playwright visual regression** and **axe-core
 
 ## Quality model
 
+<!-- prettier-ignore -->
 | Validation plane | Primary oracle | What it proves | Deliberate limit |
 | --- | --- | --- | --- |
 | Framework contracts | TypeScript + Playwright | Configuration/helpers/policy boundaries | Not product correctness |
@@ -148,6 +149,7 @@ For evidence floors, exact project-host attribution, visual identity requirement
 
 ## Documentation
 
+<!-- prettier-ignore -->
 | Guide | Use it for |
 | --- | --- |
 | [`docs/architecture.md`](docs/architecture.md) | Runtime/projects/fixtures, domain ownership, color-coded baseline data flow, trust boundaries |
