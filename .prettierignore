@@ -4,3 +4,4 @@ test-results
 tests/__screenshots__
 package-lock.json
 LICENSE
+.github/workflows/dependabot-auto-merge.yml
