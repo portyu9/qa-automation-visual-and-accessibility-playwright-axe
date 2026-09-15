@@ -29,7 +29,7 @@ function job({
   };
 }
 
-test('recovery config is valid, bounded, and excludes functional gates', () => {
+test('recovery config is valid, bounded, and excludes functional and security findings', () => {
   assert.deepEqual(validateRecoveryConfig(recoveryConfig), []);
   assert.equal(recoveryConfig.maxRunAttempts, 2);
   for (const forbidden of [
@@ -38,10 +38,15 @@ test('recovery config is valid, bounded, and excludes functional gates', () => {
     'Run accessibility gate',
     'Run smoke suite',
     'Compare against canonical baseline',
+    'Audit dependency graph',
+    'Audit npm dependency graph at HIGH/CRITICAL severity',
+    'Scan dependencies, configuration, and repository secrets',
+    'Review dependency changes',
+    'Analyze',
     'Evaluate required jobs',
     'Evaluate security jobs',
   ]) {
-    assert.equal(recoveryConfig.transientSteps.includes(forbidden), false);
+    assert.equal(recoveryConfig.transientSteps.includes(forbidden), false, forbidden);
   }
   assert.ok(
     validateRecoveryConfig({ ...recoveryConfig, maxRunAttempts: 4 }).length > 0,
@@ -89,6 +94,23 @@ test('functional failures are never reclassified as transient even when logs con
   ]) {
     const result = classifyLeafJobFailure(
       job({ step }),
+      'ETIMEDOUT EAI_AGAIN 503 Service Unavailable',
+      recoveryConfig,
+    );
+    assert.equal(result.transient, false, step);
+  }
+});
+
+test('security findings are never reclassified as transient even when logs contain network words', () => {
+  for (const step of [
+    'Audit dependency graph',
+    'Audit npm dependency graph at HIGH/CRITICAL severity',
+    'Scan dependencies, configuration, and repository secrets',
+    'Review dependency changes',
+    'Analyze',
+  ]) {
+    const result = classifyLeafJobFailure(
+      job({ name: 'security', step }),
       'ETIMEDOUT EAI_AGAIN 503 Service Unavailable',
       recoveryConfig,
     );
