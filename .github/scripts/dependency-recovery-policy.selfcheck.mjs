@@ -548,12 +548,21 @@ test('Dependabot auto-rebase and recovery workflow wiring stay protected by self
   assert.match(workflow, /dependency-recovery-policy\.selfcheck\.mjs/u);
 });
 
-
 test('ReDoS-sensitive matchers stay line-local and deterministic', () => {
-  assert.deepEqual(matchingNonTransientSignatures('package.json and package-lock.json are not in sync'), ['npm-lock-mismatch']);
-  assert.deepEqual(matchingNonTransientSignatures('npm ci requires a lockfile for this install'), ['npm-lock-mismatch']);
-  assert.deepEqual(matchingNonTransientSignatures('package.json\npackage-lock.json is not in sync'), []);
-  assert.deepEqual(matchingTransientSignatures('TLS handshake connection timed out'), ['tls-transient']);
+  assert.deepEqual(
+    matchingNonTransientSignatures('package.json and package-lock.json are not in sync'),
+    ['npm-lock-mismatch'],
+  );
+  assert.deepEqual(matchingNonTransientSignatures('npm ci requires a lockfile for this install'), [
+    'npm-lock-mismatch',
+  ]);
+  assert.deepEqual(
+    matchingNonTransientSignatures('package.json\npackage-lock.json is not in sync'),
+    [],
+  );
+  assert.deepEqual(matchingTransientSignatures('TLS handshake connection timed out'), [
+    'tls-transient',
+  ]);
   assert.deepEqual(matchingTransientSignatures('TLS handshake\nconnection timed out'), []);
   const large = `TLS ${'x'.repeat(250_000)} connection timeout`;
   assert.deepEqual(matchingTransientSignatures(large), ['tls-transient']);

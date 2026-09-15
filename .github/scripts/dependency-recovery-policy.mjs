@@ -86,9 +86,7 @@ function matchesTlsTransient(text) {
     (line) =>
       line.includes('tls') &&
       (line.includes('handshake') || line.includes('connection')) &&
-      (line.includes('timeout') ||
-        line.includes('timed out') ||
-        line.includes('unexpected eof')),
+      (line.includes('timeout') || line.includes('timed out') || line.includes('unexpected eof')),
   );
 }
 
@@ -177,7 +175,9 @@ export function validateRecoveryConfig(config) {
 
 export function matchingTransientSignatures(logs) {
   const text = String(logs || '');
-  return TRANSIENT_LOG_SIGNATURES.filter((signature) => signatureMatches(signature, text)).map(({ id }) => id);
+  return TRANSIENT_LOG_SIGNATURES.filter((signature) => signatureMatches(signature, text)).map(
+    ({ id }) => id,
+  );
 }
 
 export function matchingNonTransientSignatures(logs) {
