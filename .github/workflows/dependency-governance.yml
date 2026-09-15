@@ -8,8 +8,8 @@ on:
       - '.github/dependency-recovery.json'
       - '.github/scripts/dependency-governance.mjs'
       - '.github/scripts/dependency-governance.selfcheck.mjs'
-      - '.github/scripts/dependency-recovery.mjs'
-      - '.github/scripts/dependency-recovery.selfcheck.mjs'
+      - '.github/scripts/dependency-recovery-policy.mjs'
+      - '.github/scripts/dependency-recovery-policy.selfcheck.mjs'
       - '.github/scripts/visual-baseline-trigger.selfcheck.mjs'
       - '.github/workflows/ci.yml'
       - '.github/workflows/dependency-governance.yml'
@@ -64,12 +64,22 @@ jobs:
       - name: Validate governance configuration
         run: |
           node .github/scripts/dependency-governance.mjs --validate-config
-          node .github/scripts/dependency-recovery.mjs --validate-config
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { validateRecoveryConfig } from './.github/scripts/dependency-recovery-policy.mjs';
+
+          const config = JSON.parse(readFileSync('.github/dependency-recovery.json', 'utf8'));
+          const errors = validateRecoveryConfig(config);
+          if (errors.length > 0) {
+            throw new Error(`Invalid dependency recovery config:\n- ${errors.join('\n- ')}`);
+          }
+          console.log('dependency-recovery config: valid');
+          NODE
       - name: Exercise dependency-governance policy self-checks
         run: >-
           node --test
           .github/scripts/dependency-governance.selfcheck.mjs
-          .github/scripts/dependency-recovery.selfcheck.mjs
+          .github/scripts/dependency-recovery-policy.selfcheck.mjs
           .github/scripts/visual-baseline-trigger.selfcheck.mjs
 
   govern:
@@ -94,10 +104,19 @@ jobs:
         with:
           node-version: 24
       - name: Attempt bounded dependency recovery
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ALLOW_RECOVERY_RERUN: ${{ github.event_name == 'workflow_run' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        run: node .github/scripts/dependency-recovery.mjs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { runDependencyRecovery } = await import(
+              `${process.env.GITHUB_WORKSPACE}/.github/scripts/dependency-recovery-policy.mjs`
+            );
+            await runDependencyRecovery({
+              github,
+              context,
+              core,
+              allowRerun: ${{ github.event_name == 'workflow_run' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }},
+            });
       - name: Reconcile dependency governance
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
