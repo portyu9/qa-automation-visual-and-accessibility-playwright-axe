@@ -36,7 +36,10 @@ Local snapshots remain git-ignored and are treated as developer feedback only.
 
 ## Mitigations
 
-- Generate a baseline on **every** `main` push.
+- Generate a baseline on every ordinary `main` push.
+- Also generate a baseline when a completed `dependency-governance` run observes that the default branch advanced while the governance run was executing. This covers governed merges created with the workflow `GITHUB_TOKEN`, whose resulting branch update does not recursively start ordinary push-triggered workflows.
+- Bind the governance-follow-up baseline to the `workflow_run` event's current default-branch `GITHUB_SHA`; the PR comparison still accepts only a successful baseline whose recorded workflow head SHA exactly equals the PR base SHA.
+- Keep `visual-baseline.yml` in the dependency-governance manual-review control-plane set so baseline provenance rules cannot change through autonomous dependency updates.
 - Run a weekly refresh for the current base.
 - Retain canonical snapshot artifacts for the maximum policy-selected window used by this repository.
 - Fail closed when the exact base artifact is unavailable; never silently compare against a different commit.
