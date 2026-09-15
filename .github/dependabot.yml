@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    rebase-strategy: auto
     schedule:
       interval: weekly
       day: monday
@@ -41,6 +42,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    rebase-strategy: auto
     schedule:
       interval: weekly
       day: monday
