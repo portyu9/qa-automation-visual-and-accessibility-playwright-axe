@@ -19,6 +19,44 @@ env:
   NPM_VERSION: 11.19.1
 
 jobs:
+  changes:
+    name: change-scope
+    if: github.event_name == 'pull_request'
+    outputs:
+      visual_required: ${{ steps.scope.outputs.visual_required }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Classify visual impact from the exact PR diff
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          mapfile -t changed_files < <(git diff --name-only "$BASE_SHA" HEAD)
+
+          if [[ "${#changed_files[@]}" -eq 0 ]]; then
+            echo "::error::PR diff classification returned no changed files."
+            exit 1
+          fi
+
+          visual_required=false
+          for file in "${changed_files[@]}"; do
+            case "$file" in
+              .github/*|docs/*) ;;
+              *) visual_required=true ;;
+            esac
+          done
+
+          printf 'visual_required=%s\n' "$visual_required" >> "$GITHUB_OUTPUT"
+          printf 'Visual comparison required: %s\n' "$visual_required"
+          printf 'Changed files:\n'
+          printf ' - %s\n' "${changed_files[@]}"
+
   quality:
     name: quality
     runs-on: ubuntu-24.04
@@ -155,7 +193,8 @@ jobs:
 
   visual:
     name: visual
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.visual_required == 'true'
     permissions:
       actions: read
       contents: read
@@ -276,12 +315,14 @@ jobs:
   quality-gate:
     name: quality-gate
     if: always()
-    needs: [quality, accessibility, smoke, visual]
+    needs: [changes, quality, accessibility, smoke, visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Evaluate required jobs
         env:
+          CHANGES: ${{ needs.changes.result }}
+          VISUAL_REQUIRED: ${{ needs.changes.outputs.visual_required }}
           QUALITY: ${{ needs.quality.result }}
           ACCESSIBILITY: ${{ needs.accessibility.result }}
           SMOKE: ${{ needs.smoke.result }}
@@ -295,7 +336,16 @@ jobs:
           [[ "$SMOKE" == "success" ]] || { echo "smoke=$SMOKE"; exit 1; }
 
           if [[ "$EVENT" == "pull_request" ]]; then
-            [[ "$VISUAL" == "success" ]] || { echo "visual=$VISUAL"; exit 1; }
+            [[ "$CHANGES" == "success" ]] || { echo "change-scope=$CHANGES"; exit 1; }
+            if [[ "$VISUAL_REQUIRED" == "true" ]]; then
+              [[ "$VISUAL" == "success" ]] || { echo "visual=$VISUAL required=$VISUAL_REQUIRED"; exit 1; }
+            else
+              [[ "$VISUAL_REQUIRED" == "false" && "$VISUAL" == "skipped" ]] || {
+                echo "visual=$VISUAL required=$VISUAL_REQUIRED"
+                exit 1
+              }
+            fi
           else
+            [[ "$CHANGES" == "skipped" || "$CHANGES" == "success" ]] || { echo "change-scope=$CHANGES"; exit 1; }
             [[ "$VISUAL" == "skipped" || "$VISUAL" == "success" ]] || { echo "visual=$VISUAL"; exit 1; }
           fi
