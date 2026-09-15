@@ -17,7 +17,6 @@ permissions:
 env:
   NODE_VERSION: 24.20.0
   NPM_VERSION: 11.19.1
-  NODE_TYPES_VERSION: 24.13.3
 
 jobs:
   quality:
@@ -40,11 +39,23 @@ jobs:
           [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Verify committed TypeScript API surface matches Node 24
+      - name: Verify committed TypeScript API surface matches Node runtime
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$(node -p "require('./node_modules/@types/node/package.json').version")" == "$NODE_TYPES_VERSION" ]]
+          declared="$(node -p "require('./package.json').devDependencies['@types/node']")"
+          installed="$(node -p "require('./node_modules/@types/node/package.json').version")"
+          node_major="${NODE_VERSION%%.*}"
+          types_major="${installed%%.*}"
+
+          [[ "$installed" == "$declared" ]] || {
+            echo "::error::Installed @types/node $installed does not match the exact package.json pin $declared."
+            exit 1
+          }
+          [[ "$types_major" == "$node_major" ]] || {
+            echo "::error::@types/node major $types_major does not match Node runtime major $node_major."
+            exit 1
+          }
       - name: Static quality gate
         run: npm run check
       - name: Run framework contract gate
