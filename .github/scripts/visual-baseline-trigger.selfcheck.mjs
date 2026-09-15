@@ -19,6 +19,10 @@ test('governed main advancement regenerates an exact-head visual baseline', () =
   assert.match(baselineWorkflow, /github\.event_name != 'workflow_run'/);
   assert.match(
     baselineWorkflow,
+    /github\.event\.workflow_run\.event != 'pull_request'/,
+  );
+  assert.match(
+    baselineWorkflow,
     /github\.sha != github\.event\.workflow_run\.head_sha/,
   );
   assert.match(baselineWorkflow, /push:\n\s+branches: \[main\]/);
