@@ -9,9 +9,7 @@ import {
   validateRecoveryConfig,
 } from './dependency-recovery.mjs';
 
-const governanceConfig = JSON.parse(
-  readFileSync('.github/dependency-governance.json', 'utf8'),
-);
+const governanceConfig = JSON.parse(readFileSync('.github/dependency-governance.json', 'utf8'));
 const recoveryConfig = JSON.parse(readFileSync('.github/dependency-recovery.json', 'utf8'));
 
 function job({
@@ -111,11 +109,7 @@ test('allowlisted infrastructure step without exact transient signature remains 
 test('multiple failed steps remain ambiguous even if one is transient infrastructure', () => {
   const candidate = job({ step: 'Install dependencies' });
   candidate.steps.push({ name: 'Run smoke suite', conclusion: 'failure' });
-  const result = classifyLeafJobFailure(
-    candidate,
-    'npm error code EAI_AGAIN',
-    recoveryConfig,
-  );
+  const result = classifyLeafJobFailure(candidate, 'npm error code EAI_AGAIN', recoveryConfig);
   assert.equal(result.transient, false);
   assert.match(result.reason, /exactly one failed step/);
 });
