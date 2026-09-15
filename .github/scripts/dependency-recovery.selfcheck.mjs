@@ -58,11 +58,15 @@ test('recovery config is valid, bounded, and excludes functional gates', () => {
   );
 });
 
-test('transient signature matcher is narrow and does not accept generic failure text', () => {
+test('transient signature matcher requires precise infrastructure evidence', () => {
   assert.deepEqual(matchingTransientSignatures('npm error code EAI_AGAIN'), ['dns-eai-again']);
   assert.deepEqual(matchingTransientSignatures('request failed with status code 503'), [
     'http-5xx',
   ]);
+  assert.deepEqual(matchingTransientSignatures('503 Service Unavailable'), [
+    'gateway-service-outage',
+  ]);
+  assert.deepEqual(matchingTransientSignatures('Service Unavailable'), []);
   assert.deepEqual(matchingTransientSignatures('502 vulnerabilities found'), []);
   assert.deepEqual(matchingTransientSignatures('Test failed: expected 2 to equal 3'), []);
 });
@@ -87,7 +91,7 @@ test('functional failures are never reclassified as transient even when logs con
   ]) {
     const result = classifyLeafJobFailure(
       job({ step }),
-      'ETIMEDOUT EAI_AGAIN Service Unavailable',
+      'ETIMEDOUT EAI_AGAIN 503 Service Unavailable',
       recoveryConfig,
     );
     assert.equal(result.transient, false, step);
@@ -102,6 +106,18 @@ test('allowlisted infrastructure step without exact transient signature remains 
   );
   assert.equal(result.transient, false);
   assert.match(result.reason, /no proven transient/);
+});
+
+test('multiple failed steps remain ambiguous even if one is transient infrastructure', () => {
+  const candidate = job({ step: 'Install dependencies' });
+  candidate.steps.push({ name: 'Run smoke suite', conclusion: 'failure' });
+  const result = classifyLeafJobFailure(
+    candidate,
+    'npm error code EAI_AGAIN',
+    recoveryConfig,
+  );
+  assert.equal(result.transient, false);
+  assert.match(result.reason, /exactly one failed step/);
 });
 
 test('workflow rerun requires every failed leaf job to be proven transient', () => {
@@ -134,6 +150,19 @@ test('workflow rerun requires every failed leaf job to be proven transient', () 
   });
   assert.equal(mixed.rerunnable, false);
   assert.match(mixed.reason, /deterministic or ambiguous/);
+});
+
+test('aggregate-gate-only failure cannot authorize a rerun', () => {
+  const gate = job({ id: 11, name: 'quality-gate', step: 'Evaluate required jobs' });
+  const result = classifyRunFailure({
+    run: { status: 'completed', conclusion: 'failure', run_attempt: 1 },
+    jobs: [gate],
+    logsByJobId: { 11: 'npm error code EAI_AGAIN' },
+    gateName: 'quality-gate',
+    recoveryConfig,
+  });
+  assert.equal(result.rerunnable, false);
+  assert.match(result.reason, /no failed leaf job/);
 });
 
 test('workflow recovery is capped after one automatic rerun', () => {
@@ -181,6 +210,14 @@ test('recovery scope requires canonical provenance, signed metadata, allowlisted
   assert.equal(controlPlane.eligible, false);
   assert.match(controlPlane.reasons.join('\n'), /control-plane/);
 
+  const unknownScope = recoveryScopeAssessment({
+    ...base,
+    pull: { changed_files: 1 },
+    files: [{ filename: 'README.md' }],
+  });
+  assert.equal(unknownScope.eligible, false);
+  assert.match(unknownScope.reasons.join('\n'), /allowlisted dependency ecosystem/);
+
   const spoofed = recoveryScopeAssessment({
     ...base,
     provenance: { eligible: false, reasons: ['invalid signature'] },
@@ -191,8 +228,10 @@ test('recovery scope requires canonical provenance, signed metadata, allowlisted
 
 test('Dependabot configuration explicitly preserves native auto-rebase for every update ecosystem', () => {
   const dependabot = readFileSync('.github/dependabot.yml', 'utf8');
-  const occurrences = dependabot.match(/^\s*rebase-strategy:\s*auto\s*$/gmu) || [];
-  assert.equal(occurrences.length, 2);
+  const ecosystems = dependabot.match(/^\s*-\s+package-ecosystem:/gmu) || [];
+  const rebases = dependabot.match(/^\s*rebase-strategy:\s*auto\s*$/gmu) || [];
+  assert.ok(ecosystems.length > 0, 'Dependabot must configure at least one update ecosystem');
+  assert.equal(rebases.length, ecosystems.length);
 });
 
 test('recovery control plane is itself covered by governance self-test triggers', () => {
