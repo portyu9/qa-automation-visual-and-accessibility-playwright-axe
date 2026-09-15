@@ -7,6 +7,7 @@ on:
       - '.github/scripts/dependency-governance.mjs'
       - '.github/scripts/dependency-governance.selfcheck.mjs'
       - '.github/scripts/visual-baseline-trigger.selfcheck.mjs'
+      - '.github/workflows/ci.yml'
       - '.github/workflows/dependency-governance.yml'
       - '.github/workflows/visual-baseline.yml'
   pull_request_target:
