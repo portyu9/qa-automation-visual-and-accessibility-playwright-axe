@@ -12,7 +12,10 @@ const baselinePath = '.github/workflows/visual-baseline.yml';
 const selfcheckPath = '.github/scripts/visual-baseline-trigger.selfcheck.mjs';
 
 test('governed main advancement regenerates an exact-head visual baseline', () => {
-  assert.match(baselineWorkflow, /workflow_run:\n\s+workflows: \[dependency-governance\]\n\s+types: \[completed\]/);
+  assert.match(
+    baselineWorkflow,
+    /workflow_run:\n\s+workflows: \[dependency-governance\]\n\s+types: \[completed\]/,
+  );
   assert.match(baselineWorkflow, /github\.event_name != 'workflow_run'/);
   assert.match(
     baselineWorkflow,
