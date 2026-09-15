@@ -9,8 +9,6 @@
     "Install dependencies",
     "Install Chromium",
     "Install browser",
-    "Audit dependency graph",
-    "Audit npm dependency graph at HIGH/CRITICAL severity",
     "Upload framework evidence",
     "Upload accessibility evidence",
     "Upload smoke evidence",
