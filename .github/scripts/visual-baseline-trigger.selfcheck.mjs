@@ -2,9 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const baselineWorkflow = readFileSync('.github/workflows/visual-baseline.yml', 'utf8');
+const baselineWorkflow = readFileSync(
+  '.github/workflows/visual-baseline.yml',
+  'utf8',
+);
 const ciWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8');
-const governanceWorkflow = readFileSync('.github/workflows/dependency-governance.yml', 'utf8');
+const governanceWorkflow = readFileSync(
+  '.github/workflows/dependency-governance.yml',
+  'utf8',
+);
 const governanceConfig = JSON.parse(
   readFileSync('.github/dependency-governance.json', 'utf8'),
 );
@@ -35,10 +41,7 @@ test('visual comparison is skipped only for explicitly non-visual PR scope', () 
   assert.match(ciWorkflow, /\.github\/\*\|docs\/\*/);
   assert.match(ciWorkflow, /visual_required=false/);
   assert.match(ciWorkflow, /\*\) visual_required=true/);
-  assert.match(
-    ciWorkflow,
-    /needs\.changes\.outputs\.visual_required == 'true'/,
-  );
+  assert.match(ciWorkflow, /needs\.changes\.outputs\.visual_required == 'true'/);
   assert.match(
     ciWorkflow,
     /VISUAL_REQUIRED: \$\{\{ needs\.changes\.outputs\.visual_required \}\}/,
