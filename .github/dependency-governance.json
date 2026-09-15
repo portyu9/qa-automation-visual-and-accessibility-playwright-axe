@@ -31,7 +31,8 @@
     ".github/workflows/visual-baseline.yml",
     ".github/dependency-governance.json",
     ".github/scripts/dependency-governance.mjs",
-    ".github/scripts/dependency-governance.selfcheck.mjs"
+    ".github/scripts/dependency-governance.selfcheck.mjs",
+    ".github/scripts/visual-baseline-trigger.selfcheck.mjs"
   ],
   "ecosystems": {
     "npm": { "files": ["package.json", "package-lock.json"] },
