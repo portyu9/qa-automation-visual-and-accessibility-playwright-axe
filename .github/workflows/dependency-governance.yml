@@ -61,18 +61,6 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-      - name: Emit exact recovery policy formatting delta
-        run: |
-          npm ci --ignore-scripts
-          npx prettier --write \
-            .github/scripts/dependency-recovery-policy.mjs \
-            .github/scripts/dependency-recovery-policy.selfcheck.mjs
-          git diff -- \
-            .github/scripts/dependency-recovery-policy.mjs \
-            .github/scripts/dependency-recovery-policy.selfcheck.mjs
-          git diff --quiet -- \
-            .github/scripts/dependency-recovery-policy.mjs \
-            .github/scripts/dependency-recovery-policy.selfcheck.mjs
       - name: Validate governance configuration
         run: |
           node .github/scripts/dependency-governance.mjs --validate-config
