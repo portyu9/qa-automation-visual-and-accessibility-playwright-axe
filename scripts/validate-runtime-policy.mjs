@@ -70,8 +70,8 @@ for (const [name, workflow] of Object.entries(workflows)) {
 }
 
 const ci = workflows['ci.yml'];
-if (!ci.includes(`NODE_TYPES_VERSION: ${nodeTypes}`)) {
-  fail(`ci.yml must bind NODE_TYPES_VERSION to committed @types/node (${nodeTypes})`);
+if (ci.includes('NODE_TYPES_VERSION:')) {
+  fail('ci.yml must not duplicate the exact @types/node patch version in workflow configuration');
 }
 if (
   ci.includes(
@@ -80,12 +80,19 @@ if (
 ) {
   fail('ci.yml must not replace the committed Node declaration graph after npm ci');
 }
-if (
-  !ci.includes(
-    '[[ "$(node -p "require(\'./node_modules/@types/node/package.json\').version")" == "$NODE_TYPES_VERSION" ]]',
-  )
-) {
-  fail('ci.yml must verify the installed @types/node version from the committed dependency graph');
+
+const requiredNodeTypeChecks = [
+  "require('./package.json').devDependencies['@types/node']",
+  "require('./node_modules/@types/node/package.json').version",
+  'node_major="${NODE_VERSION%%.*}"',
+  'types_major="${installed%%.*}"',
+  '[[ "$installed" == "$declared" ]]',
+  '[[ "$types_major" == "$node_major" ]]',
+];
+for (const snippet of requiredNodeTypeChecks) {
+  if (!ci.includes(snippet)) {
+    fail(`ci.yml must preserve the dynamic Node declaration compatibility check: ${snippet}`);
+  }
 }
 
 const scripts = packageJson.scripts ?? {};
