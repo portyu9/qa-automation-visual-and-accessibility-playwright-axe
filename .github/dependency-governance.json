@@ -30,9 +30,13 @@
     ".github/workflows/security.yml",
     ".github/workflows/dependency-governance.yml",
     ".github/workflows/visual-baseline.yml",
+    ".github/dependabot.yml",
     ".github/dependency-governance.json",
+    ".github/dependency-recovery.json",
     ".github/scripts/dependency-governance.mjs",
     ".github/scripts/dependency-governance.selfcheck.mjs",
+    ".github/scripts/dependency-recovery.mjs",
+    ".github/scripts/dependency-recovery.selfcheck.mjs",
     ".github/scripts/visual-baseline-trigger.selfcheck.mjs"
   ],
   "ecosystems": {

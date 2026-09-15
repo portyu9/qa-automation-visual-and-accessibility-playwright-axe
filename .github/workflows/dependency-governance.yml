@@ -3,9 +3,13 @@ name: dependency-governance
 on:
   pull_request:
     paths:
+      - '.github/dependabot.yml'
       - '.github/dependency-governance.json'
+      - '.github/dependency-recovery.json'
       - '.github/scripts/dependency-governance.mjs'
       - '.github/scripts/dependency-governance.selfcheck.mjs'
+      - '.github/scripts/dependency-recovery.mjs'
+      - '.github/scripts/dependency-recovery.selfcheck.mjs'
       - '.github/scripts/visual-baseline-trigger.selfcheck.mjs'
       - '.github/workflows/ci.yml'
       - '.github/workflows/dependency-governance.yml'
@@ -38,6 +42,7 @@ concurrency:
 
 env:
   GOVERNANCE_CONFIG: .github/dependency-governance.json
+  RECOVERY_CONFIG: .github/dependency-recovery.json
 
 jobs:
   self-test:
@@ -57,9 +62,15 @@ jobs:
         with:
           node-version: 24
       - name: Validate governance configuration
-        run: node .github/scripts/dependency-governance.mjs --validate-config
+        run: |
+          node .github/scripts/dependency-governance.mjs --validate-config
+          node .github/scripts/dependency-recovery.mjs --validate-config
       - name: Exercise dependency-governance policy self-checks
-        run: node --test .github/scripts/dependency-governance.selfcheck.mjs .github/scripts/visual-baseline-trigger.selfcheck.mjs
+        run: >-
+          node --test
+          .github/scripts/dependency-governance.selfcheck.mjs
+          .github/scripts/dependency-recovery.selfcheck.mjs
+          .github/scripts/visual-baseline-trigger.selfcheck.mjs
 
   govern:
     name: govern-dependabot
@@ -82,6 +93,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+      - name: Attempt bounded dependency recovery
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ALLOW_RECOVERY_RERUN: ${{ github.event_name == 'workflow_run' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        run: node .github/scripts/dependency-recovery.mjs
       - name: Reconcile dependency governance
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

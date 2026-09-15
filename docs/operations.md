@@ -10,6 +10,7 @@ Use the focused guides for domain depth:
 - [`visual-regression.md`](visual-regression.md) — determinism, screenshot policy, baseline comparison, change review.
 - [`adr-001-visual-baseline-artifacts.md`](adr-001-visual-baseline-artifacts.md) — canonical baseline provenance decision.
 - [`ci-quality-gates.md`](ci-quality-gates.md) — evidence validation, CI topology, baseline workflow, security gates.
+- [`dependabot-recovery.md`](dependabot-recovery.md) — fail-closed recovery of proven transient Dependabot qualification failures.
 - [`manual-accessibility-checklist.md`](manual-accessibility-checklist.md) — human-dependent accessibility review.
 
 ## Quick start
@@ -153,6 +154,14 @@ Automated dependency changes still must satisfy runtime/static checks, framework
 
 The TypeScript major line remains constrained until the installed `typescript-eslint` line declares support for a newer major; compatible minor/patch maintenance remains enabled.
 
+### Dependabot recovery
+
+Dependabot uses native automatic rebasing for stale proposals. Repository automation never updates, pushes to, or synthesizes commits on a Dependabot branch because doing so would destroy the single signed-bot-commit provenance required by dependency governance.
+
+A non-green routine dependency PR receives at most one automated recovery rerun, and only when every failed leaf job is an explicitly allowlisted infrastructure operation whose logs contain a precise modeled transient transport/service signature. Static checks, functional tests, accessibility, browser smoke, visual comparison, scanner findings, mixed or ambiguous failures, control-plane changes, and a second failed attempt never qualify for automatic recovery.
+
+A successful recovery rerun does not bypass policy: the same exact-head `quality-gate` and `security-gate` must become green, after which dependency governance independently revalidates provenance, semantic scope, and base freshness before merge. See [`dependabot-recovery.md`](dependabot-recovery.md) for the complete state machine and fail-closed cases.
+
 ## Failure triage
 
 <!-- prettier-ignore -->
@@ -167,6 +176,7 @@ The TypeScript major line remains constrained until the installed `typescript-es
 | Evidence validator | Intended tests/projects/artifacts not proven |
 | npm Audit / Trivy / CodeQL | Independent security plane |
 | Dependency Review unavailable | GitHub service capability gap; other scans are not equivalent |
+| Recovery rerun exhausted or refused | Deterministic/ambiguous evidence or retry budget exhausted; investigate rather than broaden retry policy |
 
 ## Extension boundaries
 
