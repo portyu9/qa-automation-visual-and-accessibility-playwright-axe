@@ -33,7 +33,7 @@ const TRANSIENT_LOG_SIGNATURES = [
   },
   {
     id: 'gateway-service-outage',
-    pattern: /\b(?:Bad Gateway|Service Unavailable|Gateway Timeout)\b/iu,
+    pattern: /\b(?:502 Bad Gateway|503 Service Unavailable|504 Gateway Timeout)\b/iu,
   },
   {
     id: 'tls-transient',
