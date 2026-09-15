@@ -6,7 +6,10 @@ on:
       - '.github/dependency-governance.json'
       - '.github/scripts/dependency-governance.mjs'
       - '.github/scripts/dependency-governance.selfcheck.mjs'
+      - '.github/scripts/visual-baseline-trigger.selfcheck.mjs'
+      - '.github/workflows/ci.yml'
       - '.github/workflows/dependency-governance.yml'
+      - '.github/workflows/visual-baseline.yml'
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_run:
@@ -55,8 +58,8 @@ jobs:
           node-version: 24
       - name: Validate governance configuration
         run: node .github/scripts/dependency-governance.mjs --validate-config
-      - name: Exercise dependency-governance policy self-check
-        run: node --test .github/scripts/dependency-governance.selfcheck.mjs
+      - name: Exercise dependency-governance policy self-checks
+        run: node --test .github/scripts/dependency-governance.selfcheck.mjs .github/scripts/visual-baseline-trigger.selfcheck.mjs
 
   govern:
     name: govern-dependabot
