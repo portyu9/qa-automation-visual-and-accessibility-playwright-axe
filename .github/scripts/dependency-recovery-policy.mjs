@@ -140,7 +140,9 @@ export function matchingTransientSignatures(logs) {
 
 export function matchingNonTransientSignatures(logs) {
   const text = String(logs || '');
-  return NON_TRANSIENT_LOG_SIGNATURES.filter(({ pattern }) => pattern.test(text)).map(({ id }) => id);
+  return NON_TRANSIENT_LOG_SIGNATURES.filter(({ pattern }) => pattern.test(text)).map(
+    ({ id }) => id,
+  );
 }
 
 export function classifyLeafJobFailure(job, logs, recoveryConfig) {
@@ -228,8 +230,7 @@ export function classifyRunFailure({ run, jobs, logsByJobId, gateName, recoveryC
 
   const leafJobs = (jobs || []).filter((job) => job.name !== gateName);
   const ambiguousLeafJobs = leafJobs.filter(
-    (job) =>
-      job.conclusion !== 'failure' && !TERMINAL_NONBLOCKING_CONCLUSIONS.has(job.conclusion),
+    (job) => job.conclusion !== 'failure' && !TERMINAL_NONBLOCKING_CONCLUSIONS.has(job.conclusion),
   );
   if (ambiguousLeafJobs.length > 0) {
     return {
