@@ -184,7 +184,12 @@ function contextFixture(pull) {
   };
 }
 
-const coreFixture = () => ({ messages: [], info(message) { this.messages.push(message); } });
+const coreFixture = () => ({
+  messages: [],
+  info(message) {
+    this.messages.push(message);
+  },
+});
 
 test('recovery config is valid, bounded, and excludes functional and security findings', () => {
   assert.deepEqual(validateRecoveryConfig(recoveryConfig), []);
@@ -218,9 +223,7 @@ test('signature model is narrow and deterministic evidence outranks transient wo
   ]);
   assert.deepEqual(matchingTransientSignatures('Service Unavailable'), []);
   assert.deepEqual(matchingTransientSignatures('502 vulnerabilities found'), []);
-  assert.deepEqual(matchingNonTransientSignatures('npm error code ERESOLVE'), [
-    'npm-resolution',
-  ]);
+  assert.deepEqual(matchingNonTransientSignatures('npm error code ERESOLVE'), ['npm-resolution']);
   assert.deepEqual(matchingNonTransientSignatures('HTTP 403'), ['http-client-or-policy']);
   assert.deepEqual(matchingNonTransientSignatures('npm error code ENOSPC'), ['disk-space']);
 });
@@ -319,7 +322,14 @@ test('run recovery requires exactly one failed stable gate and no ambiguous sibl
   });
   assert.equal(positive.rerunnable, true, positive.reason);
 
-  for (const conclusion of ['cancelled', 'timed_out', 'neutral', 'action_required', 'stale', null]) {
+  for (const conclusion of [
+    'cancelled',
+    'timed_out',
+    'neutral',
+    'action_required',
+    'stale',
+    null,
+  ]) {
     const result = classifyRunFailure({
       run,
       jobs: [transient, { id: 20, name: 'sibling', conclusion, steps: [] }, gate()],
