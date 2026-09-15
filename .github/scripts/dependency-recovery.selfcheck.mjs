@@ -9,10 +9,17 @@ import {
   validateRecoveryConfig,
 } from './dependency-recovery.mjs';
 
-const governanceConfig = JSON.parse(readFileSync('.github/dependency-governance.json', 'utf8'));
+const governanceConfig = JSON.parse(
+  readFileSync('.github/dependency-governance.json', 'utf8'),
+);
 const recoveryConfig = JSON.parse(readFileSync('.github/dependency-recovery.json', 'utf8'));
 
-function job({ id = 1, name = 'quality', step = 'Install dependencies', conclusion = 'failure' } = {}) {
+function job({
+  id = 1,
+  name = 'quality',
+  step = 'Install dependencies',
+  conclusion = 'failure',
+} = {}) {
   return {
     id,
     name,
@@ -53,7 +60,9 @@ test('recovery config is valid, bounded, and excludes functional gates', () => {
 
 test('transient signature matcher is narrow and does not accept generic failure text', () => {
   assert.deepEqual(matchingTransientSignatures('npm error code EAI_AGAIN'), ['dns-eai-again']);
-  assert.deepEqual(matchingTransientSignatures('request failed with status code 503'), ['http-5xx']);
+  assert.deepEqual(matchingTransientSignatures('request failed with status code 503'), [
+    'http-5xx',
+  ]);
   assert.deepEqual(matchingTransientSignatures('502 vulnerabilities found'), []);
   assert.deepEqual(matchingTransientSignatures('Test failed: expected 2 to equal 3'), []);
 });
@@ -108,7 +117,11 @@ test('workflow rerun requires every failed leaf job to be proven transient', () 
   });
   assert.equal(positive.rerunnable, true, positive.reason);
 
-  const deterministic = job({ id: 12, name: 'smoke / chromium', step: 'Run smoke suite' });
+  const deterministic = job({
+    id: 12,
+    name: 'smoke / chromium',
+    step: 'Run smoke suite',
+  });
   const mixed = classifyRunFailure({
     run,
     jobs: [transient, deterministic, gate],
