@@ -37,7 +37,8 @@ const TRANSIENT_LOG_SIGNATURES = [
   },
   {
     id: 'tls-transient',
-    pattern: /\bTLS\b.*\b(?:handshake|connection)\b.*\b(?:timeout|timed out|unexpected EOF)\b/iu,
+    pattern:
+      /\bTLS\b.*\b(?:handshake|connection)\b.*\b(?:timeout|timed out|unexpected EOF)\b/iu,
   },
 ];
 
@@ -88,7 +89,9 @@ export function validateRecoveryConfig(config) {
 
 export function matchingTransientSignatures(logs) {
   const text = String(logs || '');
-  return TRANSIENT_LOG_SIGNATURES.filter(({ pattern }) => pattern.test(text)).map(({ id }) => id);
+  return TRANSIENT_LOG_SIGNATURES.filter(({ pattern }) => pattern.test(text)).map(
+    ({ id }) => id,
+  );
 }
 
 export function classifyLeafJobFailure(job, logs, recoveryConfig) {
@@ -129,7 +132,13 @@ export function classifyLeafJobFailure(job, logs, recoveryConfig) {
   };
 }
 
-export function classifyRunFailure({ run, jobs, logsByJobId, gateName, recoveryConfig }) {
+export function classifyRunFailure({
+  run,
+  jobs,
+  logsByJobId,
+  gateName,
+  recoveryConfig,
+}) {
   if (run?.status !== 'completed' || run?.conclusion !== 'failure') {
     return { rerunnable: false, reason: 'workflow run is not a completed failure', failures: [] };
   }
@@ -276,12 +285,20 @@ async function getPullCommits(api, pull) {
 
 async function getPullFiles(api, pull) {
   if (pull.changed_files > 100) {
-    throw new Error(`PR changes ${pull.changed_files} files; refusing oversized recovery input`);
+    throw new Error(
+      `PR changes ${pull.changed_files} files; refusing oversized recovery input`,
+    );
   }
   return api.get(`/pulls/${pull.number}/files?per_page=100`);
 }
 
-export function recoveryScopeAssessment({ pull, files, provenance, metadataAssessment, governanceConfig }) {
+export function recoveryScopeAssessment({
+  pull,
+  files,
+  provenance,
+  metadataAssessment,
+  governanceConfig,
+}) {
   const reasons = [];
   if (!provenance.eligible) reasons.push(...provenance.reasons);
   if (!metadataAssessment.eligible) reasons.push(...metadataAssessment.reasons);
@@ -369,8 +386,16 @@ async function recoverPull(api, number, governanceConfig, recoveryConfig, allowR
   }
 
   const baseSha = await getCurrentBaseSha(api, governanceConfig.baseBranch);
-  const [commits, files] = await Promise.all([getPullCommits(api, pull), getPullFiles(api, pull)]);
-  const provenance = validateProvenance({ pull, commits, baseSha, config: governanceConfig });
+  const [commits, files] = await Promise.all([
+    getPullCommits(api, pull),
+    getPullFiles(api, pull),
+  ]);
+  const provenance = validateProvenance({
+    pull,
+    commits,
+    baseSha,
+    config: governanceConfig,
+  });
   const metadataAssessment = provenance.commit
     ? validateSignedMetadata(provenance.commit, governanceConfig)
     : { eligible: false, reasons: ['no single verified Dependabot commit'], metadata: [] };
@@ -496,7 +521,9 @@ async function main() {
     const results = [];
     for (const pull of dependabotPulls) {
       try {
-        results.push(await recoverPull(api, pull.number, governanceConfig, recoveryConfig, allowRerun));
+        results.push(
+          await recoverPull(api, pull.number, governanceConfig, recoveryConfig, allowRerun),
+        );
       } catch (error) {
         results.push({ pr: pull.number, error: error.message });
       }
