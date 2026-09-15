@@ -26,7 +26,8 @@ jobs:
     name: generate-and-verify
     if: >-
       github.event_name != 'workflow_run' ||
-      github.sha != github.event.workflow_run.head_sha
+      (github.event.workflow_run.event != 'pull_request' &&
+       github.sha != github.event.workflow_run.head_sha)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
