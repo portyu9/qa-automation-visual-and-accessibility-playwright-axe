@@ -1,0 +1,125 @@
+name: one-shot-redos-remediation
+
+on:
+  push:
+    branches: [security/fix-recovery-redos]
+    paths:
+      - '.github/workflows/one-shot-redos-remediation.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-redos-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    if: github.ref == 'refs/heads/security/fix-recovery-redos'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: security/fix-recovery-redos
+          fetch-depth: 1
+      - name: Apply linear-time matcher remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          policy_path = Path('.github/scripts/dependency-recovery-policy.mjs')
+          policy = policy_path.read_text()
+          substitutions = [
+              ("pattern: /(?:package\\.json.*package-lock\\.json.*not in sync|npm ci.*lock(?:file)?)/isu,", "matcher: matchesNpmLockMismatch,", 'npm-lock-mismatch'),
+              ("pattern: /\\bTLS\\b.*\\b(?:handshake|connection)\\b.*\\b(?:timeout|timed out|unexpected EOF)\\b/iu,", "matcher: matchesTlsTransient,", 'tls-transient'),
+          ]
+          for old, new, label in substitutions:
+              count = policy.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one exact {label} vulnerable pattern, found {count}')
+              policy = policy.replace(old, new)
+          anchor = 'function parseTimestamp(value) {'
+          helpers = """function anyLogLineMatches(text, predicate) {
+            const normalized = String(text || '').toLowerCase();
+            let start = 0;
+            while (start <= normalized.length) {
+              const newline = normalized.indexOf('\\n', start);
+              const end = newline === -1 ? normalized.length : newline;
+              if (predicate(normalized.slice(start, end))) return true;
+              if (newline === -1) return false;
+              start = newline + 1;
+            }
+            return false;
+          }
+
+          function matchesNpmLockMismatch(text) {
+            return anyLogLineMatches(
+              text,
+              (line) =>
+                (line.includes('package.json') &&
+                  line.includes('package-lock.json') &&
+                  line.includes('not in sync')) ||
+                (line.includes('npm ci') && line.includes('lock')),
+            );
+          }
+
+          function matchesTlsTransient(text) {
+            return anyLogLineMatches(
+              text,
+              (line) =>
+                line.includes('tls') &&
+                (line.includes('handshake') || line.includes('connection')) &&
+                (line.includes('timeout') ||
+                  line.includes('timed out') ||
+                  line.includes('unexpected eof')),
+            );
+          }
+
+          function signatureMatches(signature, text) {
+            return typeof signature.matcher === 'function'
+              ? signature.matcher(text)
+              : signature.pattern.test(text);
+          }
+
+          """
+          if policy.count(anchor) != 1:
+              raise SystemExit('parseTimestamp anchor changed; refusing blind rewrite')
+          policy = policy.replace(anchor, helpers + anchor)
+          dispatch = '.filter(({ pattern }) => pattern.test(text))'
+          if policy.count(dispatch) != 2:
+              raise SystemExit(f'expected two signature dispatches, found {policy.count(dispatch)}')
+          policy = policy.replace(dispatch, '.filter((signature) => signatureMatches(signature, text))')
+          policy_path.write_text(policy)
+          selfcheck_path = Path('.github/scripts/dependency-recovery-policy.selfcheck.mjs')
+          selfcheck = selfcheck_path.read_text()
+          marker = "test('ReDoS-sensitive matchers stay line-local and deterministic'"
+          if marker not in selfcheck:
+              selfcheck += """
+
+          test('ReDoS-sensitive matchers stay line-local and deterministic', () => {
+            assert.deepEqual(matchingNonTransientSignatures('package.json and package-lock.json are not in sync'), ['npm-lock-mismatch']);
+            assert.deepEqual(matchingNonTransientSignatures('npm ci requires a lockfile for this install'), ['npm-lock-mismatch']);
+            assert.deepEqual(matchingNonTransientSignatures('package.json\\npackage-lock.json is not in sync'), []);
+            assert.deepEqual(matchingTransientSignatures('TLS handshake connection timed out'), ['tls-transient']);
+            assert.deepEqual(matchingTransientSignatures('TLS handshake\\nconnection timed out'), []);
+            const large = `TLS ${'x'.repeat(250_000)} connection timeout`;
+            assert.deepEqual(matchingTransientSignatures(large), ['tls-transient']);
+          });
+          """
+          selfcheck_path.write_text(selfcheck)
+          PY
+          rm .github/workflows/one-shot-redos-remediation.yml
+          git diff --check
+          node --test .github/scripts/dependency-recovery-policy.selfcheck.mjs
+      - name: Commit remediation and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/scripts/dependency-recovery-policy.mjs .github/scripts/dependency-recovery-policy.selfcheck.mjs .github/workflows/one-shot-redos-remediation.yml
+          git commit -m 'security: eliminate recovery matcher ReDoS'
+          git push origin HEAD:security/fix-recovery-redos
