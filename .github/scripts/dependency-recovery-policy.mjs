@@ -18,7 +18,7 @@ const NON_TRANSIENT_LOG_SIGNATURES = [
   { id: 'npm-no-matching-version', pattern: /\bNo matching version found\b/iu },
   {
     id: 'npm-lock-mismatch',
-    pattern: /(?:package\.json.*package-lock\.json.*not in sync|npm ci.*lock(?:file)?)/isu,
+    matcher: matchesNpmLockMismatch,
   },
   {
     id: 'http-client-or-policy',
@@ -48,12 +48,52 @@ const TRANSIENT_LOG_SIGNATURES = [
   },
   {
     id: 'tls-transient',
-    pattern: /\bTLS\b.*\b(?:handshake|connection)\b.*\b(?:timeout|timed out|unexpected EOF)\b/iu,
+    matcher: matchesTlsTransient,
   },
 ];
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function anyLogLineMatches(text, predicate) {
+  const normalized = String(text || '').toLowerCase();
+  let start = 0;
+  while (start <= normalized.length) {
+    const newline = normalized.indexOf('\n', start);
+    const end = newline === -1 ? normalized.length : newline;
+    if (predicate(normalized.slice(start, end))) return true;
+    if (newline === -1) return false;
+    start = newline + 1;
+  }
+  return false;
+}
+
+function matchesNpmLockMismatch(text) {
+  return anyLogLineMatches(
+    text,
+    (line) =>
+      (line.includes('package.json') &&
+        line.includes('package-lock.json') &&
+        line.includes('not in sync')) ||
+      (line.includes('npm ci') && line.includes('lock')),
+  );
+}
+
+function matchesTlsTransient(text) {
+  return anyLogLineMatches(
+    text,
+    (line) =>
+      line.includes('tls') &&
+      (line.includes('handshake') || line.includes('connection')) &&
+      (line.includes('timeout') || line.includes('timed out') || line.includes('unexpected eof')),
+  );
+}
+
+function signatureMatches(signature, text) {
+  return typeof signature.matcher === 'function'
+    ? signature.matcher(text)
+    : signature.pattern.test(text);
 }
 
 function parseTimestamp(value) {
@@ -135,12 +175,14 @@ export function validateRecoveryConfig(config) {
 
 export function matchingTransientSignatures(logs) {
   const text = String(logs || '');
-  return TRANSIENT_LOG_SIGNATURES.filter(({ pattern }) => pattern.test(text)).map(({ id }) => id);
+  return TRANSIENT_LOG_SIGNATURES.filter((signature) => signatureMatches(signature, text)).map(
+    ({ id }) => id,
+  );
 }
 
 export function matchingNonTransientSignatures(logs) {
   const text = String(logs || '');
-  return NON_TRANSIENT_LOG_SIGNATURES.filter(({ pattern }) => pattern.test(text)).map(
+  return NON_TRANSIENT_LOG_SIGNATURES.filter((signature) => signatureMatches(signature, text)).map(
     ({ id }) => id,
   );
 }
