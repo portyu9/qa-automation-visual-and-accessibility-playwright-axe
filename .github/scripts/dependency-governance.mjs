@@ -1,11 +1,11 @@
 #!/usr/bin/env node
+/* global structuredClone, fetch */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import governanceConfig from '../dependency-governance.json' with { type: 'json' };
 
-const DEFAULT_CONFIG_PATH = '.github/dependency-governance.json';
 const DEP_SECTIONS = [
   'dependencies',
   'devDependencies',
@@ -13,6 +13,10 @@ const DEP_SECTIONS = [
   'peerDependencies',
 ];
 const PAGE_SIZE = 100;
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
 
 export function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
@@ -36,19 +40,28 @@ export function parseSemverLike(input) {
   if (/[-+][0-9A-Za-z]/.test(value.replace(/^[~^<>=\s]*/, ''))) return null;
   const match = value.match(/^[~^<>=\s]*v?(\d+)\.(\d+)\.(\d+)(?:\s*)$/);
   if (!match) return null;
-  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]), raw: value };
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    raw: value,
+  };
 }
 
 export function compareSemver(oldVersion, newVersion) {
   const oldV = typeof oldVersion === 'string' ? parseSemverLike(oldVersion) : oldVersion;
   const newV = typeof newVersion === 'string' ? parseSemverLike(newVersion) : newVersion;
   if (!oldV || !newV) return { risk: 'unknown', reason: 'non-semver or prerelease version' };
+
   const tupleOld = [oldV.major, oldV.minor, oldV.patch];
   const tupleNew = [newV.major, newV.minor, newV.patch];
-  for (let i = 0; i < 3; i += 1) {
-    if (tupleNew[i] < tupleOld[i]) return { risk: 'downgrade', reason: 'dependency downgrade' };
-    if (tupleNew[i] > tupleOld[i]) break;
+  for (let index = 0; index < 3; index += 1) {
+    if (tupleNew[index] < tupleOld[index]) {
+      return { risk: 'downgrade', reason: 'dependency downgrade' };
+    }
+    if (tupleNew[index] > tupleOld[index]) break;
   }
+
   if (oldV.major !== newV.major) return { risk: 'major', reason: 'semver major transition' };
   if (oldV.major === 0 && oldV.minor !== newV.minor) {
     return { risk: 'major-risk', reason: '0.x minor transition treated as breaking-risk' };
@@ -56,35 +69,6 @@ export function compareSemver(oldVersion, newVersion) {
   if (oldV.minor !== newV.minor) return { risk: 'minor', reason: 'semver minor transition' };
   if (oldV.patch !== newV.patch) return { risk: 'patch', reason: 'semver patch transition' };
   return { risk: 'same', reason: 'same semantic version' };
-}
-
-export function parseDependabotMetadata(message) {
-  const result = [];
-  const lines = String(message || '').split(/\r?\n/);
-  let current = null;
-  let inBlock = false;
-  for (const line of lines) {
-    if (line.trim() === 'updated-dependencies:') {
-      inBlock = true;
-      continue;
-    }
-    if (!inBlock) continue;
-    if (line.trim() === '...') break;
-    let match = line.match(/^\s*-\s+dependency-name:\s*(.+?)\s*$/);
-    if (match) {
-      if (current) result.push(current);
-      current = { name: unquote(match[1]) };
-      continue;
-    }
-    match = line.match(/^\s+dependency-version:\s*(.+?)\s*$/);
-    if (match && current) current.version = unquote(match[1]);
-    match = line.match(/^\s+dependency-type:\s*(.+?)\s*$/);
-    if (match && current) current.dependencyType = unquote(match[1]);
-    match = line.match(/^\s+update-type:\s*(.+?)\s*$/);
-    if (match && current) current.updateType = unquote(match[1]);
-  }
-  if (current) result.push(current);
-  return result;
 }
 
 function unquote(value) {
@@ -98,17 +82,52 @@ function unquote(value) {
   return text;
 }
 
+export function parseDependabotMetadata(message) {
+  const result = [];
+  const lines = String(message || '').split(/\r?\n/);
+  let current = null;
+  let inBlock = false;
+
+  for (const line of lines) {
+    if (line.trim() === 'updated-dependencies:') {
+      inBlock = true;
+      continue;
+    }
+    if (!inBlock) continue;
+    if (line.trim() === '...') break;
+
+    let match = line.match(/^\s*-\s+dependency-name:\s*(.+?)\s*$/);
+    if (match) {
+      if (current) result.push(current);
+      current = { name: unquote(match[1]) };
+      continue;
+    }
+    match = line.match(/^\s+dependency-version:\s*(.+?)\s*$/);
+    if (match && current) current.version = unquote(match[1]);
+    match = line.match(/^\s+dependency-type:\s*(.+?)\s*$/);
+    if (match && current) current.dependencyType = unquote(match[1]);
+    match = line.match(/^\s+update-type:\s*(.+?)\s*$/);
+    if (match && current) current.updateType = unquote(match[1]);
+  }
+
+  if (current) result.push(current);
+  return result;
+}
+
 export function classifyEcosystem(files, config) {
   const names = files.map((file) => (typeof file === 'string' ? file : file.filename));
   const npmFiles = new Set(config.ecosystems.npm.files);
   if (names.length > 0 && names.every((name) => npmFiles.has(name))) return 'npm';
+
   const dockerFiles = new Set(config.ecosystems.docker.files);
   if (names.length > 0 && names.every((name) => dockerFiles.has(name))) return 'docker';
+
   const { workflowPrefix, extensions } = config.ecosystems['github-actions'];
   if (
     names.length > 0 &&
     names.every(
-      (name) => name.startsWith(workflowPrefix) && extensions.some((ext) => name.endsWith(ext)),
+      (name) =>
+        name.startsWith(workflowPrefix) && extensions.some((extension) => name.endsWith(extension)),
     )
   ) {
     return 'github-actions';
@@ -117,7 +136,7 @@ export function classifyEcosystem(files, config) {
 }
 
 function stripDependencySections(pkg) {
-  const clone = JSON.parse(JSON.stringify(pkg));
+  const clone = structuredClone(pkg);
   for (const section of DEP_SECTIONS) delete clone[section];
   return clone;
 }
@@ -135,6 +154,7 @@ function directDependencyMap(pkg) {
 export function validateNpmSemanticChange(basePackage, headPackage, baseLock, headLock, metadata) {
   const reasons = [];
   const changes = [];
+
   if (!jsonEqual(stripDependencySections(basePackage), stripDependencySections(headPackage))) {
     reasons.push('package.json changed outside dependency declarations');
   }
@@ -145,6 +165,7 @@ export function validateNpmSemanticChange(basePackage, headPackage, baseLock, he
   ) {
     reasons.push('package-lock.json identity or lockfile format changed');
   }
+
   const baseRoot = baseLock?.packages?.[''];
   const headRoot = headLock?.packages?.[''];
   if (!baseRoot || !headRoot) reasons.push('package-lock.json is missing the root package record');
@@ -180,16 +201,19 @@ export function validateNpmSemanticChange(basePackage, headPackage, baseLock, he
       to: newEntry.spec,
       risk: comparison.risk,
     });
-    if (!['patch', 'minor'].includes(comparison.risk))
+    if (!['patch', 'minor'].includes(comparison.risk)) {
       reasons.push(`${oldEntry.name}: ${comparison.reason}`);
+    }
   }
-  if (changes.length === 0)
+  if (changes.length === 0) {
     reasons.push('no direct dependency version change could be proven from package.json');
+  }
 
   const metadataNames = new Set(metadata.map((item) => item.name));
   for (const change of changes) {
-    if (!metadataNames.has(change.name))
+    if (!metadataNames.has(change.name)) {
       reasons.push(`${change.name} changed but is absent from signed Dependabot metadata`);
+    }
   }
 
   const basePackages = baseLock?.packages || {};
@@ -242,11 +266,15 @@ export function validateDockerSemanticChange(baseText, headText, metadata, allow
   const headLines = String(headText).split(/\r?\n/);
   const reasons = [];
   const changes = [];
+
   if (baseLines.length !== headLines.length) reasons.push('Dockerfile line count changed');
   const max = Math.max(baseLines.length, headLines.length);
   const differing = [];
-  for (let i = 0; i < max; i += 1) if (baseLines[i] !== headLines[i]) differing.push(i);
+  for (let index = 0; index < max; index += 1) {
+    if (baseLines[index] !== headLines[index]) differing.push(index);
+  }
   if (differing.length === 0) reasons.push('Dockerfile contains no semantic change');
+
   for (const index of differing) {
     if (
       !/^\s*FROM\s+/i.test(baseLines[index] || '') ||
@@ -255,13 +283,15 @@ export function validateDockerSemanticChange(baseText, headText, metadata, allow
       reasons.push(`Dockerfile changed outside a FROM line at line ${index + 1}`);
     }
   }
+
   for (const index of differing) {
     const before = parseDockerImageReference(baseLines[index] || '');
     const after = parseDockerImageReference(headLines[index] || '');
     if (!before || !after) continue;
     const shortName = after.image.split('/').at(-1);
-    if (before.image !== after.image)
+    if (before.image !== after.image) {
       reasons.push(`container image identity changed from ${before.image} to ${after.image}`);
+    }
     if (
       allowedImages.length > 0 &&
       !allowedImages.includes(shortName) &&
@@ -291,10 +321,11 @@ export function validateDockerSemanticChange(baseText, headText, metadata, allow
       reasons.push('container tag version could not be proven as semantic versioning');
       continue;
     }
-    if (before.suffix !== after.suffix)
+    if (before.suffix !== after.suffix) {
       reasons.push(
         `container platform suffix changed from ${before.suffix || '(none)'} to ${after.suffix || '(none)'}`,
       );
+    }
     const comparison = compareSemver(before.version, after.version);
     changes.push({
       ecosystem: 'docker',
@@ -303,15 +334,19 @@ export function validateDockerSemanticChange(baseText, headText, metadata, allow
       to: after.tag,
       risk: comparison.risk,
     });
-    if (!['patch', 'minor'].includes(comparison.risk))
+    if (!['patch', 'minor'].includes(comparison.risk)) {
       reasons.push(`${after.image}: ${comparison.reason}`);
+    }
   }
+
   const metadataNames = new Set(metadata.map((item) => item.name));
   for (const change of changes) {
     const shortName = change.name.split('/').at(-1);
-    if (!metadataNames.has(change.name) && !metadataNames.has(shortName))
+    if (!metadataNames.has(change.name) && !metadataNames.has(shortName)) {
       reasons.push(`${change.name} changed but is absent from signed Dependabot metadata`);
+    }
   }
+
   return { eligible: reasons.length === 0, reasons: unique(reasons), changes };
 }
 
@@ -343,29 +378,33 @@ export function validateActionsSemanticChange(
   const reasons = [];
   const changes = [];
   const metadataByName = new Map(metadata.map((item) => [item.name, item]));
+
   for (const file of files) {
     const filename = typeof file === 'string' ? file : file.filename;
-    if (manualReviewPaths.includes(filename))
+    if (manualReviewPaths.includes(filename)) {
       reasons.push(`${filename} is a privileged/control-plane workflow and requires human review`);
+    }
+
     const baseLines = String(baseByPath[filename] || '').split(/\r?\n/);
     const headLines = String(headByPath[filename] || '').split(/\r?\n/);
     if (baseLines.length !== headLines.length) {
       reasons.push(`${filename} changed line structure instead of only a pinned action reference`);
       continue;
     }
+
     let fileChanges = 0;
-    for (let i = 0; i < baseLines.length; i += 1) {
-      if (baseLines[i] === headLines[i]) continue;
+    for (let index = 0; index < baseLines.length; index += 1) {
+      if (baseLines[index] === headLines[index]) continue;
       fileChanges += 1;
-      const before = parseActionUseLine(baseLines[i]);
-      const after = parseActionUseLine(headLines[i]);
+      const before = parseActionUseLine(baseLines[index]);
+      const after = parseActionUseLine(headLines[index]);
       if (!before || !after) {
-        reasons.push(`${filename}:${i + 1} changed outside the exact pinned-action pattern`);
+        reasons.push(`${filename}:${index + 1} changed outside the exact pinned-action pattern`);
         continue;
       }
       if (before.action !== after.action) {
         reasons.push(
-          `${filename}:${i + 1} changed action identity from ${before.action} to ${after.action}`,
+          `${filename}:${index + 1} changed action identity from ${before.action} to ${after.action}`,
         );
         continue;
       }
@@ -385,18 +424,20 @@ export function validateActionsSemanticChange(
         reasons.push(`${after.action}: action annotation crosses a major version`);
         continue;
       }
+
       let comparison = compareSemver(before.version, after.version);
       if (comparison.risk === 'same') {
-        if (/semver-patch$/.test(signed.updateType || ''))
+        if (/semver-patch$/.test(signed.updateType || '')) {
           comparison = {
             risk: 'patch',
             reason: 'signed Dependabot patch update with coarse action annotation',
           };
-        else if (/semver-minor$/.test(signed.updateType || ''))
+        } else if (/semver-minor$/.test(signed.updateType || '')) {
           comparison = {
             risk: 'minor',
             reason: 'signed Dependabot minor update with coarse action annotation',
           };
+        }
       }
       if (before.version.major === 0 && comparison.risk === 'minor') {
         comparison = {
@@ -411,66 +452,76 @@ export function validateActionsSemanticChange(
         to: after.version.raw,
         risk: comparison.risk,
       });
-      if (!['patch', 'minor'].includes(comparison.risk))
+      if (!['patch', 'minor'].includes(comparison.risk)) {
         reasons.push(`${after.action}: ${comparison.reason}`);
+      }
     }
     if (fileChanges === 0) reasons.push(`${filename} contains no action reference change`);
   }
-  return { eligible: reasons.length === 0, reasons: unique(reasons), changes };
-}
 
-function unique(values) {
-  return [...new Set(values.filter(Boolean))];
+  return { eligible: reasons.length === 0, reasons: unique(reasons), changes };
 }
 
 export function validateConfig(config) {
   const errors = [];
   const nonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
+
   if (config?.schemaVersion !== 1) errors.push('schemaVersion must equal 1');
   if (config?.botLogin !== 'dependabot[bot]') errors.push('botLogin must be dependabot[bot]');
-  if (!Number.isInteger(config?.botUserId) || config.botUserId <= 0)
+  if (!Number.isInteger(config?.botUserId) || config.botUserId <= 0) {
     errors.push('botUserId must be a positive integer');
+  }
   if (!nonEmpty(config?.botAuthorEmail)) errors.push('botAuthorEmail must be non-empty');
   if (!nonEmpty(config?.trustedCommitterLogin))
     errors.push('trustedCommitterLogin must be non-empty');
-  if (!nonEmpty(config?.gitCommitterName) || !nonEmpty(config?.gitCommitterEmail))
+  if (!nonEmpty(config?.gitCommitterName) || !nonEmpty(config?.gitCommitterEmail)) {
     errors.push('git committer identity must be configured');
+  }
   if (!nonEmpty(config?.signedOffBy)) errors.push('signedOffBy must be non-empty');
   if (!nonEmpty(config?.baseBranch)) errors.push('baseBranch must be non-empty');
   if (!['merge', 'squash', 'rebase'].includes(config?.mergeMethod))
     errors.push('mergeMethod is invalid');
   if (typeof config?.automergeEnabled !== 'boolean')
     errors.push('automergeEnabled must be boolean');
+
   if (
     !Number.isInteger(config?.maxChangedFiles) ||
     config.maxChangedFiles < 1 ||
     config.maxChangedFiles > 100
-  )
+  ) {
     errors.push('maxChangedFiles must be an integer from 1 to 100');
+  }
   if (
     !Number.isInteger(config?.maxPullRequestAgeDays) ||
     config.maxPullRequestAgeDays < 1 ||
     config.maxPullRequestAgeDays > 90
-  )
+  ) {
     errors.push('maxPullRequestAgeDays must be an integer from 1 to 90');
+  }
   if (
     !Number.isInteger(config?.maxPaginationPages) ||
     config.maxPaginationPages < 1 ||
     config.maxPaginationPages > 20
-  )
+  ) {
     errors.push('maxPaginationPages must be an integer from 1 to 20');
-  if (!Array.isArray(config?.manualReviewLabels) || config.manualReviewLabels.length === 0)
+  }
+  if (!Array.isArray(config?.manualReviewLabels) || config.manualReviewLabels.length === 0) {
     errors.push('manualReviewLabels must be non-empty');
-  if (!Array.isArray(config?.requiredWorkflows) || config.requiredWorkflows.length === 0)
+  }
+  if (!Array.isArray(config?.requiredWorkflows) || config.requiredWorkflows.length === 0) {
     errors.push('requiredWorkflows must be non-empty');
+  }
+
   const workflowNames = new Set();
   const gateNames = new Set();
   const workflowFiles = new Set();
   for (const item of config?.requiredWorkflows || []) {
-    if (!item.workflow || !item.gate || !item.file)
+    if (!item.workflow || !item.gate || !item.file) {
       errors.push('each required workflow needs workflow, gate, and dispatch file');
-    if (item.file && (item.file.includes('/') || !/^[A-Za-z0-9._-]+\.ya?ml$/.test(item.file)))
+    }
+    if (item.file && (item.file.includes('/') || !/^[A-Za-z0-9._-]+\.ya?ml$/.test(item.file))) {
       errors.push(`workflow file ${item.file} must be a basename ending in .yml or .yaml`);
+    }
     if (workflowNames.has(item.workflow)) errors.push(`duplicate workflow ${item.workflow}`);
     if (gateNames.has(item.gate)) errors.push(`duplicate gate ${item.gate}`);
     if (workflowFiles.has(item.file)) errors.push(`duplicate workflow file ${item.file}`);
@@ -478,6 +529,7 @@ export function validateConfig(config) {
     gateNames.add(item.gate);
     workflowFiles.add(item.file);
   }
+
   if (
     !Array.isArray(config?.allowedUpdateTypes) ||
     config.allowedUpdateTypes.length === 0 ||
@@ -485,6 +537,7 @@ export function validateConfig(config) {
   ) {
     errors.push('allowedUpdateTypes must exist and must never include major updates');
   }
+
   for (const critical of [
     '.github/workflows/security.yml',
     '.github/workflows/dependency-governance.yml',
@@ -492,26 +545,32 @@ export function validateConfig(config) {
     '.github/scripts/dependency-governance.mjs',
     '.github/scripts/dependency-governance.selfcheck.mjs',
   ]) {
-    if (!config?.manualReviewPaths?.includes(critical))
+    if (!config?.manualReviewPaths?.includes(critical)) {
       errors.push(`${critical} must require manual review`);
+    }
   }
-  if (!Array.isArray(config?.ecosystems?.npm?.files) || config.ecosystems.npm.files.length === 0)
+
+  if (!Array.isArray(config?.ecosystems?.npm?.files) || config.ecosystems.npm.files.length === 0) {
     errors.push('npm ecosystem files must be configured');
+  }
   if (
     !Array.isArray(config?.ecosystems?.docker?.files) ||
     config.ecosystems.docker.files.length === 0
-  )
+  ) {
     errors.push('docker ecosystem files must be configured');
+  }
   if (
     !Array.isArray(config?.ecosystems?.docker?.allowedImages) ||
     config.ecosystems.docker.allowedImages.length === 0
-  )
+  ) {
     errors.push('docker allowedImages must be non-empty');
+  }
   if (
     !nonEmpty(config?.ecosystems?.['github-actions']?.workflowPrefix) ||
     !Array.isArray(config?.ecosystems?.['github-actions']?.extensions)
-  )
+  ) {
     errors.push('github-actions ecosystem policy is incomplete');
+  }
   return unique(errors);
 }
 
@@ -521,6 +580,204 @@ export function parsePositiveInteger(value, name = 'value') {
   const number = Number(text);
   if (!Number.isSafeInteger(number)) throw new Error(`${name} exceeds the safe integer range`);
   return number;
+}
+
+export function validateProvenance({ pull, commits, baseSha, config, now = new Date() }) {
+  const reasons = [];
+  if (pull.user?.login !== config.botLogin) {
+    reasons.push(`PR author is ${pull.user?.login || 'unknown'}, not ${config.botLogin}`);
+  }
+  if (pull.user?.id !== config.botUserId) {
+    reasons.push(
+      `PR author numeric identity is ${pull.user?.id ?? 'unknown'}, expected ${config.botUserId}`,
+    );
+  }
+  if (pull.base?.ref !== config.baseBranch) {
+    reasons.push(`base branch is ${pull.base?.ref}, expected ${config.baseBranch}`);
+  }
+  if (pull.head?.repo?.full_name !== pull.base?.repo?.full_name) {
+    reasons.push('Dependabot PR head must be in the same repository');
+  }
+  if (!String(pull.head?.ref || '').startsWith('dependabot/')) {
+    reasons.push('head branch is not a Dependabot branch');
+  }
+  if (pull.draft) reasons.push('draft PRs are never autonomously merged');
+  if (config.automergeEnabled !== true) {
+    reasons.push('repository autonomous merge kill switch is disabled');
+  }
+
+  const labels = new Set(
+    (pull.labels || [])
+      .map((label) => (typeof label === 'string' ? label : label.name))
+      .filter(Boolean),
+  );
+  for (const label of config.manualReviewLabels || []) {
+    if (labels.has(label)) reasons.push(`PR carries manual-review label ${label}`);
+  }
+
+  const createdAt = new Date(pull.created_at);
+  if (Number.isNaN(createdAt.getTime())) {
+    reasons.push('PR creation timestamp is invalid');
+  } else if (now.getTime() - createdAt.getTime() > config.maxPullRequestAgeDays * 86_400_000) {
+    reasons.push(`PR is older than autonomous limit ${config.maxPullRequestAgeDays} day(s)`);
+  }
+
+  if (commits.length !== 1 || pull.commits !== 1) {
+    reasons.push('autonomous merge requires exactly one Dependabot commit');
+  }
+  const commit = commits[0];
+  if (commit) {
+    if (commit.author?.login !== config.botLogin) {
+      reasons.push(`commit author is ${commit.author?.login || 'unknown'}, not ${config.botLogin}`);
+    }
+    if (commit.author?.id !== config.botUserId) {
+      reasons.push(
+        `commit author numeric identity is ${commit.author?.id ?? 'unknown'}, expected ${config.botUserId}`,
+      );
+    }
+    if (commit.committer?.login !== config.trustedCommitterLogin) {
+      reasons.push(
+        `commit was materialized by ${commit.committer?.login || 'unknown'}, expected ${config.trustedCommitterLogin}`,
+      );
+    }
+    if (commit.commit?.author?.name !== config.botLogin) {
+      reasons.push('Git commit author name does not match Dependabot');
+    }
+    if (commit.commit?.author?.email !== config.botAuthorEmail) {
+      reasons.push('Git commit author email does not match canonical Dependabot identity');
+    }
+    if (
+      commit.commit?.committer?.name !== config.gitCommitterName ||
+      commit.commit?.committer?.email !== config.gitCommitterEmail
+    ) {
+      reasons.push('Git commit committer identity does not match GitHub signing infrastructure');
+    }
+    if (
+      commit.commit?.verification?.verified !== true ||
+      commit.commit?.verification?.reason !== 'valid'
+    ) {
+      reasons.push('Dependabot commit signature is not GitHub-verified as valid');
+    }
+    if (
+      typeof commit.commit?.verification?.signature !== 'string' ||
+      commit.commit.verification.signature.length === 0
+    ) {
+      reasons.push('Dependabot commit has no verifiable signature material');
+    }
+    if (!String(commit.commit?.message || '').includes(config.signedOffBy)) {
+      reasons.push('Dependabot commit is missing the canonical Signed-off-by trailer');
+    }
+    if (commit.parents?.length !== 1) reasons.push('Dependabot commit must not be a merge commit');
+    if (commit.parents?.[0]?.sha !== baseSha) {
+      reasons.push('PR is not rebased directly on the current base branch head');
+    }
+    if (commit.sha !== pull.head?.sha) {
+      reasons.push('PR head SHA does not equal the verified Dependabot commit SHA');
+    }
+  }
+  return { eligible: reasons.length === 0, reasons: unique(reasons), commit };
+}
+
+export function validateSignedMetadata(commit, config) {
+  const metadata = parseDependabotMetadata(commit?.commit?.message || '');
+  const reasons = [];
+  if (metadata.length === 0) {
+    reasons.push('verified Dependabot commit contains no updated-dependencies metadata');
+  }
+  for (const item of metadata) {
+    if (!item.name || !item.version || !item.updateType) {
+      reasons.push('Dependabot metadata entry is incomplete');
+    }
+    if (!config.allowedUpdateTypes.includes(item.updateType)) {
+      reasons.push(
+        `${item.name || 'dependency'} uses non-autonomous update type ${item.updateType || 'unknown'}`,
+      );
+    }
+  }
+  return { eligible: reasons.length === 0, reasons: unique(reasons), metadata };
+}
+
+export function workflowIdentityMatches(run, pull, requirement) {
+  const expectedPath = `.github/workflows/${requirement.file}`;
+  const associationMatches =
+    !Array.isArray(run?.pull_requests) ||
+    run.pull_requests.length === 0 ||
+    run.pull_requests.some((item) => item.number === pull.number);
+  return (
+    run?.name === requirement.workflow &&
+    run?.path === expectedPath &&
+    run?.event === 'pull_request' &&
+    run?.head_sha === pull.head.sha &&
+    run?.head_branch === pull.head.ref &&
+    associationMatches
+  );
+}
+
+export function selectQualificationRun(runs, pull, requirement) {
+  return (
+    runs
+      .filter((run) => workflowIdentityMatches(run, pull, requirement))
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at || b.created_at).getTime() -
+          new Date(a.updated_at || a.created_at).getTime(),
+      )[0] || null
+  );
+}
+
+export async function reconcileIndependently(pulls, processor) {
+  const results = [];
+  const failures = [];
+  for (const pull of pulls) {
+    try {
+      results.push({ number: pull.number, result: await processor(pull) });
+    } catch (error) {
+      failures.push({ number: pull.number, error: error?.message || String(error) });
+    }
+  }
+  return { results, failures };
+}
+
+export function eventPullNumber(event, eventName) {
+  if (eventName === 'pull_request_target' || eventName === 'pull_request') {
+    return event.pull_request?.number || null;
+  }
+  if (eventName === 'workflow_dispatch') {
+    const value = event.inputs?.['pr-number'];
+    return value == null || value === ''
+      ? null
+      : parsePositiveInteger(value, 'workflow_dispatch pr-number');
+  }
+  if (eventName === 'workflow_run') return event.workflow_run?.pull_requests?.[0]?.number || null;
+  return null;
+}
+
+export function targetPullNumberFromEnvironment(eventName, env = process.env) {
+  if (eventName === 'schedule') return null;
+  const raw = String(env.TARGET_PR_NUMBER || '').trim();
+  if (!raw) return null;
+  return parsePositiveInteger(raw, `${eventName} target PR number`);
+}
+
+export function normalizeDependabotHeadBranch(value) {
+  const branch = String(value || '').trim();
+  if (!branch) return null;
+  if (!branch.startsWith('dependabot/')) return null;
+  if (branch.length > 255) throw new Error('workflow_run head branch exceeds 255 characters');
+  if (!/^[A-Za-z0-9._/-]+$/u.test(branch)) {
+    throw new Error('workflow_run head branch contains unsupported characters');
+  }
+  if (
+    branch.includes('..') ||
+    branch.includes('//') ||
+    branch.includes('@{') ||
+    branch.endsWith('/') ||
+    branch.endsWith('.') ||
+    branch.endsWith('.lock')
+  ) {
+    throw new Error('workflow_run head branch violates bounded ref policy');
+  }
+  return branch;
 }
 
 class GitHubApi {
@@ -535,7 +792,7 @@ class GitHubApi {
   }
 
   async request(method, url, body) {
-    const response = await globalThis.fetch(url, {
+    const response = await fetch(url, {
       method,
       headers: {
         Accept: 'application/vnd.github+json',
@@ -567,6 +824,7 @@ class GitHubApi {
   get(pathname) {
     return this.request('GET', pathname.startsWith('http') ? pathname : `${this.root}${pathname}`);
   }
+
   post(pathname, body) {
     return this.request(
       'POST',
@@ -574,6 +832,7 @@ class GitHubApi {
       body,
     );
   }
+
   patch(pathname, body) {
     return this.request(
       'PATCH',
@@ -581,6 +840,7 @@ class GitHubApi {
       body,
     );
   }
+
   put(pathname, body) {
     return this.request(
       'PUT',
@@ -595,8 +855,9 @@ class GitHubApi {
       const separator = pathname.includes('?') ? '&' : '?';
       const payload = await this.get(`${pathname}${separator}per_page=${PAGE_SIZE}&page=${page}`);
       const pageValues = selector ? payload?.[selector] : payload;
-      if (!Array.isArray(pageValues))
+      if (!Array.isArray(pageValues)) {
         throw new Error(`pagination endpoint ${pathname} did not return ${selector || 'an array'}`);
+      }
       values.push(...pageValues);
       if (pageValues.length < PAGE_SIZE) return values;
     }
@@ -608,18 +869,19 @@ class GitHubApi {
   async fileAt(filename, ref) {
     const encodedPath = filename.split('/').map(encodeURIComponent).join('/');
     const payload = await this.get(`/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`);
-    if (payload?.encoding !== 'base64' || typeof payload?.content !== 'string')
+    if (payload?.encoding !== 'base64' || typeof payload?.content !== 'string') {
       throw new Error(`Unable to decode ${filename}@${ref}`);
+    }
     return Buffer.from(payload.content.replace(/\n/g, ''), 'base64').toString('utf8');
   }
 }
 
-function loadConfig(configPath = process.env.GOVERNANCE_CONFIG || DEFAULT_CONFIG_PATH) {
-  const absolute = path.resolve(configPath);
-  const config = JSON.parse(fs.readFileSync(absolute, 'utf8'));
+function loadConfig() {
+  const config = structuredClone(governanceConfig);
   const errors = validateConfig(config);
-  if (errors.length)
+  if (errors.length) {
     throw new Error(`Invalid dependency governance config:\n- ${errors.join('\n- ')}`);
+  }
   return config;
 }
 
@@ -633,144 +895,19 @@ async function getPull(api, number) {
 }
 
 async function getPullFiles(api, pull) {
-  if (pull.changed_files > 100)
+  if (pull.changed_files > PAGE_SIZE) {
     throw new Error(
       `PR changes ${pull.changed_files} files; refusing to paginate an oversized autonomous change`,
     );
-  return api.get(`/pulls/${pull.number}/files?per_page=100`);
+  }
+  return api.get(`/pulls/${pull.number}/files?per_page=${PAGE_SIZE}`);
 }
 
 async function getPullCommits(api, pull) {
-  if (pull.commits > 100)
+  if (pull.commits > PAGE_SIZE) {
     throw new Error(`PR contains ${pull.commits} commits; refusing oversized autonomous history`);
-  return api.get(`/pulls/${pull.number}/commits?per_page=100`);
-}
-
-export function validateProvenance({ pull, commits, baseSha, config, now = new Date() }) {
-  const reasons = [];
-  if (pull.user?.login !== config.botLogin)
-    reasons.push(`PR author is ${pull.user?.login || 'unknown'}, not ${config.botLogin}`);
-  if (pull.user?.id !== config.botUserId)
-    reasons.push(
-      `PR author numeric identity is ${pull.user?.id ?? 'unknown'}, expected ${config.botUserId}`,
-    );
-  if (pull.base?.ref !== config.baseBranch)
-    reasons.push(`base branch is ${pull.base?.ref}, expected ${config.baseBranch}`);
-  if (pull.head?.repo?.full_name !== pull.base?.repo?.full_name)
-    reasons.push('Dependabot PR head must be in the same repository');
-  if (!String(pull.head?.ref || '').startsWith('dependabot/'))
-    reasons.push('head branch is not a Dependabot branch');
-  if (pull.draft) reasons.push('draft PRs are never autonomously merged');
-  if (config.automergeEnabled !== true)
-    reasons.push('repository autonomous merge kill switch is disabled');
-  const labels = new Set(
-    (pull.labels || [])
-      .map((label) => (typeof label === 'string' ? label : label.name))
-      .filter(Boolean),
-  );
-  for (const label of config.manualReviewLabels || [])
-    if (labels.has(label)) reasons.push(`PR carries manual-review label ${label}`);
-  const createdAt = new Date(pull.created_at);
-  if (Number.isNaN(createdAt.getTime())) reasons.push('PR creation timestamp is invalid');
-  else if (now.getTime() - createdAt.getTime() > config.maxPullRequestAgeDays * 86_400_000)
-    reasons.push(`PR is older than autonomous limit ${config.maxPullRequestAgeDays} day(s)`);
-  if (commits.length !== 1 || pull.commits !== 1)
-    reasons.push('autonomous merge requires exactly one Dependabot commit');
-  const commit = commits[0];
-  if (commit) {
-    if (commit.author?.login !== config.botLogin)
-      reasons.push(`commit author is ${commit.author?.login || 'unknown'}, not ${config.botLogin}`);
-    if (commit.author?.id !== config.botUserId)
-      reasons.push(
-        `commit author numeric identity is ${commit.author?.id ?? 'unknown'}, expected ${config.botUserId}`,
-      );
-    if (commit.committer?.login !== config.trustedCommitterLogin)
-      reasons.push(
-        `commit was materialized by ${commit.committer?.login || 'unknown'}, expected ${config.trustedCommitterLogin}`,
-      );
-    if (commit.commit?.author?.name !== config.botLogin)
-      reasons.push('Git commit author name does not match Dependabot');
-    if (commit.commit?.author?.email !== config.botAuthorEmail)
-      reasons.push('Git commit author email does not match canonical Dependabot identity');
-    if (
-      commit.commit?.committer?.name !== config.gitCommitterName ||
-      commit.commit?.committer?.email !== config.gitCommitterEmail
-    )
-      reasons.push('Git commit committer identity does not match GitHub signing infrastructure');
-    if (
-      commit.commit?.verification?.verified !== true ||
-      commit.commit?.verification?.reason !== 'valid'
-    )
-      reasons.push('Dependabot commit signature is not GitHub-verified as valid');
-    if (
-      typeof commit.commit?.verification?.signature !== 'string' ||
-      commit.commit.verification.signature.length === 0
-    )
-      reasons.push('Dependabot commit has no verifiable signature material');
-    if (!String(commit.commit?.message || '').includes(config.signedOffBy))
-      reasons.push('Dependabot commit is missing the canonical Signed-off-by trailer');
-    if (commit.parents?.length !== 1) reasons.push('Dependabot commit must not be a merge commit');
-    if (commit.parents?.[0]?.sha !== baseSha)
-      reasons.push('PR is not rebased directly on the current base branch head');
-    if (commit.sha !== pull.head?.sha)
-      reasons.push('PR head SHA does not equal the verified Dependabot commit SHA');
   }
-  return { eligible: reasons.length === 0, reasons: unique(reasons), commit };
-}
-
-export function validateSignedMetadata(commit, config) {
-  const metadata = parseDependabotMetadata(commit?.commit?.message || '');
-  const reasons = [];
-  if (metadata.length === 0)
-    reasons.push('verified Dependabot commit contains no updated-dependencies metadata');
-  for (const item of metadata) {
-    if (!item.name || !item.version || !item.updateType)
-      reasons.push('Dependabot metadata entry is incomplete');
-    if (!config.allowedUpdateTypes.includes(item.updateType))
-      reasons.push(
-        `${item.name || 'dependency'} uses non-autonomous update type ${item.updateType || 'unknown'}`,
-      );
-  }
-  return { eligible: reasons.length === 0, reasons: unique(reasons), metadata };
-}
-
-export function workflowIdentityMatches(run, pull, requirement) {
-  const expectedPath = `.github/workflows/${requirement.file}`;
-  const associationMatches =
-    !Array.isArray(run?.pull_requests) ||
-    run.pull_requests.length === 0 ||
-    run.pull_requests.some((item) => item.number === pull.number);
-  return (
-    run?.name === requirement.workflow &&
-    run?.path === expectedPath &&
-    run?.event === 'pull_request' &&
-    run?.head_sha === pull.head.sha &&
-    run?.head_branch === pull.head.ref &&
-    associationMatches
-  );
-}
-
-export function selectQualificationRun(runs, pull, requirement) {
-  return (
-    runs
-      .filter((run) => workflowIdentityMatches(run, pull, requirement))
-      .sort(
-        (a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at),
-      )[0] || null
-  );
-}
-
-export async function reconcileIndependently(pulls, processor) {
-  const results = [];
-  const failures = [];
-  for (const pull of pulls) {
-    try {
-      results.push({ number: pull.number, result: await processor(pull) });
-    } catch (error) {
-      failures.push({ number: pull.number, error: error?.message || String(error) });
-    }
-  }
-  return { results, failures };
+  return api.get(`/pulls/${pull.number}/commits?per_page=${PAGE_SIZE}`);
 }
 
 async function validateChangeSemantics({ api, pull, files, ecosystem, metadata, config }) {
@@ -859,15 +996,17 @@ async function qualificationForHead(api, pull, config) {
     const jobs = await api.paginate(`/actions/runs/${run.id}/jobs?filter=latest`, 'jobs');
     const gate = jobs.filter((job) => job.name === requirement.gate).sort((a, b) => b.id - a.id)[0];
     if (!gate) qualifications.push({ ...requirement, state: 'gate-missing', runId: run.id });
-    else if (gate.status !== 'completed')
+    else if (gate.status !== 'completed') {
       qualifications.push({ ...requirement, state: 'gate-pending', runId: run.id });
-    else if (gate.conclusion !== 'success')
+    } else if (gate.conclusion !== 'success') {
       qualifications.push({
         ...requirement,
         state: `gate-${gate.conclusion || 'unknown'}`,
         runId: run.id,
       });
-    else qualifications.push({ ...requirement, state: 'success', runId: run.id });
+    } else {
+      qualifications.push({ ...requirement, state: 'success', runId: run.id });
+    }
   }
   const allSuccess = qualifications.every((item) => item.state === 'success');
   const anyFailed = qualifications.some(
@@ -888,6 +1027,7 @@ function renderComment({ assessment, config, merged = false, dispatches = [] }) 
         : qualification?.anyFailed
           ? '❌ qualification failed'
           : '⏳ eligible; waiting for required qualification';
+
   const lines = [
     config.statusCommentMarker,
     '### Dependency governance',
@@ -903,6 +1043,7 @@ function renderComment({ assessment, config, merged = false, dispatches = [] }) 
     `| Semantic scope | ${semantic.eligible ? '✅ allowlisted dependency-only change' : '❌ manual'} |`,
     '',
   ];
+
   if (semantic.changes?.length) {
     lines.push(
       '**Proven dependency changes**',
@@ -910,12 +1051,14 @@ function renderComment({ assessment, config, merged = false, dispatches = [] }) 
       '| Dependency | From | To | Risk |',
       '| --- | --- | --- | --- |',
     );
-    for (const change of semantic.changes)
+    for (const change of semantic.changes) {
       lines.push(
         `| \`${change.name}\` | \`${change.from}\` | \`${change.to}\` | \`${change.risk}\` |`,
       );
+    }
     lines.push('');
   }
+
   const blockers = unique([
     ...provenance.reasons,
     ...metadataAssessment.reasons,
@@ -926,6 +1069,7 @@ function renderComment({ assessment, config, merged = false, dispatches = [] }) 
     for (const reason of blockers) lines.push(`- ${reason}`);
     lines.push('');
   }
+
   if (qualification) {
     lines.push(
       '**Exact-head qualification**',
@@ -933,10 +1077,12 @@ function renderComment({ assessment, config, merged = false, dispatches = [] }) 
       '| Workflow | Stable gate | State |',
       '| --- | --- | --- |',
     );
-    for (const item of qualification.qualifications)
+    for (const item of qualification.qualifications) {
       lines.push(`| \`${item.workflow}\` | \`${item.gate}\` | \`${item.state}\` |`);
+    }
     lines.push('');
   }
+
   if (merged && dispatches.length) {
     lines.push(
       '**Post-merge main requalification dispatch**',
@@ -954,6 +1100,7 @@ function renderComment({ assessment, config, merged = false, dispatches = [] }) 
     }
     lines.push('');
   }
+
   lines.push(
     `Head: \`${pull.head.sha}\``,
     '',
@@ -968,11 +1115,14 @@ async function upsertComment(api, pullNumber, marker, body) {
     (comment) =>
       comment.user?.login === 'github-actions[bot]' && String(comment.body || '').includes(marker),
   );
-  if (matches.length > 1)
+  if (matches.length > 1) {
     throw new Error(
       `found ${matches.length} governance status comments; refusing ambiguous idempotent update`,
     );
-  if (matches.length === 1) return api.patch(`/issues/comments/${matches[0].id}`, { body });
+  }
+  if (matches.length === 1) {
+    return api.patch(`/issues/comments/${matches[0].id}`, { body });
+  }
   return api.post(`/issues/${pullNumber}/comments`, { body });
 }
 
@@ -996,26 +1146,35 @@ async function assessPull(api, number, config, { includeQualification = true } =
         reasons: ['provenance could not be established'],
         metadata: [],
       },
-      semantic: { eligible: false, reasons: ['change semantics were not evaluated'], changes: [] },
+      semantic: {
+        eligible: false,
+        reasons: ['change semantics were not evaluated'],
+        changes: [],
+      },
       qualification: includeQualification
         ? { allSuccess: false, anyFailed: false, qualifications: [] }
         : null,
     };
   }
+
   const provenance = validateProvenance({ pull, commits, baseSha, config });
   const metadataAssessment = provenance.commit
     ? validateSignedMetadata(provenance.commit, config)
     : { eligible: false, reasons: ['no single verified Dependabot commit'], metadata: [] };
   const ecosystem = classifyEcosystem(files, config);
   let semantic = { eligible: false, reasons: [], changes: [] };
-  if (files.length > config.maxChangedFiles)
+
+  if (files.length > config.maxChangedFiles) {
     semantic.reasons.push(
       `PR changes ${files.length} files, exceeding autonomous limit ${config.maxChangedFiles}`,
     );
-  if (pull.changed_files !== files.length)
+  }
+  if (pull.changed_files !== files.length) {
     semantic.reasons.push(
       `GitHub reports ${pull.changed_files} changed files but ${files.length} were enumerated`,
     );
+  }
+
   if (provenance.eligible && metadataAssessment.eligible && semantic.reasons.length === 0) {
     const evaluated = await validateChangeSemantics({
       api,
@@ -1025,12 +1184,16 @@ async function assessPull(api, number, config, { includeQualification = true } =
       metadata: metadataAssessment.metadata,
       config,
     });
-    semantic = { ...evaluated, reasons: unique([...semantic.reasons, ...evaluated.reasons]) };
+    semantic = {
+      ...evaluated,
+      reasons: unique([...semantic.reasons, ...evaluated.reasons]),
+    };
   } else if (semantic.reasons.length === 0) {
     semantic.reasons.push(
       'semantic auto-merge evaluation skipped because provenance or signed metadata is not eligible',
     );
   }
+
   const qualification =
     includeQualification && provenance.eligible && metadataAssessment.eligible && semantic.eligible
       ? await qualificationForHead(api, pull, config)
@@ -1045,6 +1208,7 @@ async function assessPull(api, number, config, { includeQualification = true } =
             })),
           }
         : null;
+
   return {
     pull,
     baseSha,
@@ -1081,8 +1245,9 @@ async function maybeMerge(api, assessment, config, allowMerge) {
     sha: refreshed.pull.head.sha,
     commit_title: refreshed.pull.title,
     commit_message:
-      'Qualified and merged by dependency governance after provenance, semantic-scope, exact-base, CI, extended, security, and documentation gates.',
+      'Qualified and merged by dependency governance after provenance, semantic-scope, exact-base, and all configured qualification gates.',
   });
+
   const dispatches = [];
   if (result?.merged === true) {
     for (const requirement of config.requiredWorkflows) {
@@ -1108,37 +1273,15 @@ async function maybeMerge(api, assessment, config, allowMerge) {
   return { merged: result?.merged === true, result, refreshed, dispatches };
 }
 
-export function eventPullNumber(event, eventName) {
-  if (eventName === 'pull_request_target' || eventName === 'pull_request')
-    return event.pull_request?.number || null;
-  if (eventName === 'workflow_dispatch') {
-    const value = event.inputs?.['pr-number'];
-    return value == null || value === ''
-      ? null
-      : parsePositiveInteger(value, 'workflow_dispatch pr-number');
-  }
-  if (eventName === 'workflow_run') return event.workflow_run?.pull_requests?.[0]?.number || null;
-  return null;
-}
-
-async function resolveWorkflowRunPull(api, event) {
-  const direct = event.workflow_run?.pull_requests?.[0]?.number;
-  if (direct) return direct;
-  const branch = event.workflow_run?.head_branch;
-  if (!branch) return null;
-  const pulls = await api.paginate(
-    `/pulls?state=open&head=${encodeURIComponent(`${api.owner}:${branch}`)}`,
-  );
-  return pulls.length === 1 ? pulls[0].number : null;
-}
-
 async function processPull(api, number, config, { allowMerge, includeQualification = true }) {
   const assessment = await assessPull(api, number, config, { includeQualification });
   if (
     assessment.pull.user?.login !== config.botLogin ||
     assessment.pull.user?.id !== config.botUserId
-  )
+  ) {
     return { skipped: true, reason: 'not canonical Dependabot' };
+  }
+
   const mergeAttempt = await maybeMerge(api, assessment, config, allowMerge);
   const finalAssessment = mergeAttempt.refreshed || assessment;
   const body = renderComment({
@@ -1148,6 +1291,7 @@ async function processPull(api, number, config, { allowMerge, includeQualificati
     dispatches: mergeAttempt.dispatches || [],
   });
   await upsertComment(api, number, config.statusCommentMarker, body);
+
   const failedDispatches = (mergeAttempt.dispatches || []).filter(
     (item) => item.state !== 'requested',
   );
@@ -1159,17 +1303,24 @@ async function processPull(api, number, config, { allowMerge, includeQualificati
   return { skipped: false, assessment: finalAssessment, merged: mergeAttempt.merged };
 }
 
+async function resolveWorkflowRunPull(api, branchValue) {
+  const branch = normalizeDependabotHeadBranch(branchValue);
+  if (!branch) return null;
+  const pulls = await api.paginate(
+    `/pulls?state=open&head=${encodeURIComponent(`${api.owner}:${branch}`)}`,
+  );
+  return pulls.length === 1 ? pulls[0].number : null;
+}
+
 async function main() {
   const config = loadConfig();
   if (process.argv.includes('--validate-config')) {
     console.log('dependency-governance config: valid');
     return;
   }
+
   const eventName = process.env.GITHUB_EVENT_NAME;
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventName || !eventPath)
-    throw new Error('GITHUB_EVENT_NAME and GITHUB_EVENT_PATH are required');
-  const event = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+  if (!eventName) throw new Error('GITHUB_EVENT_NAME is required');
   const api = new GitHubApi({
     token: process.env.GITHUB_TOKEN,
     repository: process.env.GITHUB_REPOSITORY,
@@ -1192,20 +1343,27 @@ async function main() {
         2,
       ),
     );
-    if (reconciliation.failures.length)
+    if (reconciliation.failures.length) {
       throw new Error(
         `scheduled dependency governance failed for ${reconciliation.failures.length} PR(s)`,
       );
+    }
     return;
   }
 
-  let number = eventPullNumber(event, eventName);
-  if (!number && eventName === 'workflow_run') number = await resolveWorkflowRunPull(api, event);
+  let number = targetPullNumberFromEnvironment(eventName);
+  if (!number && eventName === 'workflow_run') {
+    number = await resolveWorkflowRunPull(api, process.env.WORKFLOW_RUN_HEAD_BRANCH);
+  }
   if (!number) {
     console.log(`No pull request resolved for ${eventName}; nothing to do.`);
     return;
   }
-  const result = await processPull(api, number, config, { allowMerge, includeQualification: true });
+
+  const result = await processPull(api, number, config, {
+    allowMerge,
+    includeQualification: true,
+  });
   console.log(
     JSON.stringify(
       { pr: number, skipped: result.skipped, merged: result.merged || false },
