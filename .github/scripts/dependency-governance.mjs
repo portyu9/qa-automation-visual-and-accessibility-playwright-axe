@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global structuredClone, fetch */
 
 import path from 'node:path';
 import process from 'node:process';
@@ -1129,7 +1130,7 @@ async function assessPull(api, number, config, { includeQualification = true } =
   const pull = await getPull(api, number);
   const baseSha = await getCurrentBaseSha(api, config.baseBranch);
   let files = [];
-  let commits = [];
+  let commits;
   try {
     [files, commits] = await Promise.all([getPullFiles(api, pull), getPullCommits(api, pull)]);
   } catch (error) {
