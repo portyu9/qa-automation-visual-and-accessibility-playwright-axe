@@ -107,6 +107,7 @@ jobs:
             const normalizedContext = context.eventName === 'workflow_run'
               ? {
                   ...context,
+                  repo: context.repo,
                   payload: {
                     ...context.payload,
                     workflow_run: { ...context.payload.workflow_run, name: 'security' },
