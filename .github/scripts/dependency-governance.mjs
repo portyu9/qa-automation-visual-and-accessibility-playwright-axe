@@ -5,7 +5,12 @@ import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import governanceConfig from '../dependency-governance.json' with { type: 'json' };
 
-const DEP_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+const DEP_SECTIONS = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+];
 const PAGE_SIZE = 100;
 
 function unique(values) {
@@ -15,7 +20,11 @@ function unique(values) {
 export function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, stable(value[key])]),
+    );
   }
   return value;
 }
@@ -116,7 +125,8 @@ export function classifyEcosystem(files, config) {
   if (
     names.length > 0 &&
     names.every(
-      (name) => name.startsWith(workflowPrefix) && extensions.some((extension) => name.endsWith(extension)),
+      (name) =>
+        name.startsWith(workflowPrefix) && extensions.some((extension) => name.endsWith(extension)),
     )
   ) {
     return 'github-actions';
@@ -429,7 +439,10 @@ export function validateActionsSemanticChange(
         }
       }
       if (before.version.major === 0 && comparison.risk === 'minor') {
-        comparison = { risk: 'major-risk', reason: '0.x action minor transition treated as breaking-risk' };
+        comparison = {
+          risk: 'major-risk',
+          reason: '0.x action minor transition treated as breaking-risk',
+        };
       }
       changes.push({
         ecosystem: 'github-actions',
@@ -458,14 +471,17 @@ export function validateConfig(config) {
     errors.push('botUserId must be a positive integer');
   }
   if (!nonEmpty(config?.botAuthorEmail)) errors.push('botAuthorEmail must be non-empty');
-  if (!nonEmpty(config?.trustedCommitterLogin)) errors.push('trustedCommitterLogin must be non-empty');
+  if (!nonEmpty(config?.trustedCommitterLogin))
+    errors.push('trustedCommitterLogin must be non-empty');
   if (!nonEmpty(config?.gitCommitterName) || !nonEmpty(config?.gitCommitterEmail)) {
     errors.push('git committer identity must be configured');
   }
   if (!nonEmpty(config?.signedOffBy)) errors.push('signedOffBy must be non-empty');
   if (!nonEmpty(config?.baseBranch)) errors.push('baseBranch must be non-empty');
-  if (!['merge', 'squash', 'rebase'].includes(config?.mergeMethod)) errors.push('mergeMethod is invalid');
-  if (typeof config?.automergeEnabled !== 'boolean') errors.push('automergeEnabled must be boolean');
+  if (!['merge', 'squash', 'rebase'].includes(config?.mergeMethod))
+    errors.push('mergeMethod is invalid');
+  if (typeof config?.automergeEnabled !== 'boolean')
+    errors.push('automergeEnabled must be boolean');
 
   if (
     !Number.isInteger(config?.maxChangedFiles) ||
@@ -571,7 +587,9 @@ export function validateProvenance({ pull, commits, baseSha, config, now = new D
     reasons.push(`PR author is ${pull.user?.login || 'unknown'}, not ${config.botLogin}`);
   }
   if (pull.user?.id !== config.botUserId) {
-    reasons.push(`PR author numeric identity is ${pull.user?.id ?? 'unknown'}, expected ${config.botUserId}`);
+    reasons.push(
+      `PR author numeric identity is ${pull.user?.id ?? 'unknown'}, expected ${config.botUserId}`,
+    );
   }
   if (pull.base?.ref !== config.baseBranch) {
     reasons.push(`base branch is ${pull.base?.ref}, expected ${config.baseBranch}`);
@@ -975,9 +993,7 @@ async function qualificationForHead(api, pull, config) {
       continue;
     }
     const jobs = await api.paginate(`/actions/runs/${run.id}/jobs?filter=latest`, 'jobs');
-    const gate = jobs
-      .filter((job) => job.name === requirement.gate)
-      .sort((a, b) => b.id - a.id)[0];
+    const gate = jobs.filter((job) => job.name === requirement.gate).sort((a, b) => b.id - a.id)[0];
     if (!gate) qualifications.push({ ...requirement, state: 'gate-missing', runId: run.id });
     else if (gate.status !== 'completed') {
       qualifications.push({ ...requirement, state: 'gate-pending', runId: run.id });
