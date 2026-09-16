@@ -1,23 +1,25 @@
 name: format-probe
 
 on:
-  pull_request:
-    paths:
-      - '.github/scripts/dependency-governance.mjs'
-      - '.github/workflows/format-probe.yml'
+  push:
+    branches:
+      - security/sever-governance-file-network-dataflow
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  render:
+  format:
+    if: github.repository == 'portyu9/qa-automation-visual-and-accessibility-playwright-axe' && github.ref == 'refs/heads/security/sever-governance-file-network-dataflow'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout proposed code
+      - name: Checkout exact formatting branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
+          ref: security/sever-governance-file-network-dataflow
+          persist-credentials: true
+          fetch-depth: 1
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -25,7 +27,17 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Emit repository-canonical formatting as JSON
+      - name: Format only the hardened governance controller
+        run: npx prettier --write .github/scripts/dependency-governance.mjs
+      - name: Commit only canonical formatting when needed
         run: |
-          npx prettier .github/scripts/dependency-governance.mjs > /tmp/dependency-governance.formatted.mjs
-          node -e "const fs=require('node:fs'); console.log('FORMATTED_JSON='+JSON.stringify(fs.readFileSync('/tmp/dependency-governance.formatted.mjs','utf8')))"
+          if git diff --quiet -- .github/scripts/dependency-governance.mjs; then
+            echo 'Controller already uses repository-canonical formatting.'
+            exit 0
+          fi
+          test -z "$(git diff --name-only -- . ':(exclude).github/scripts/dependency-governance.mjs')"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/scripts/dependency-governance.mjs
+          git commit -m 'style: apply repository-canonical governance formatting'
+          git push origin HEAD:security/sever-governance-file-network-dataflow
