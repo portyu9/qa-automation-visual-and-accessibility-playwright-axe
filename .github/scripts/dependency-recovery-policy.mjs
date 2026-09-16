@@ -12,6 +12,20 @@ import {
 const PAGE_SIZE = 100;
 const TERMINAL_NONBLOCKING_CONCLUSIONS = new Set(['success', 'skipped']);
 const LOG_TIMESTAMP = /^\uFEFF?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\s/;
+const SAFE_TRANSIENT_STEPS = new Set([
+  'Checkout',
+  'Set up Node.js',
+  'Pin npm runtime',
+  'Install dependencies',
+  'Install Chromium',
+  'Install browser',
+  'Upload framework evidence',
+  'Upload accessibility evidence',
+  'Upload smoke evidence',
+  'Upload visual comparison evidence',
+  'Upload npm audit evidence',
+  'Upload Trivy security evidence',
+]);
 
 const NON_TRANSIENT_LOG_SIGNATURES = [
   { id: 'npm-resolution', pattern: /\b(?:ERESOLVE|ELSPROBLEMS|EBADENGINE|EUSAGE)\b/iu },
@@ -135,12 +149,8 @@ export function validateRecoveryConfig(config) {
   const errors = [];
   if (config?.schemaVersion !== 1) errors.push('schemaVersion must equal 1');
   if (typeof config?.enabled !== 'boolean') errors.push('enabled must be boolean');
-  if (
-    !Number.isInteger(config?.maxRunAttempts) ||
-    config.maxRunAttempts < 1 ||
-    config.maxRunAttempts > 3
-  ) {
-    errors.push('maxRunAttempts must be an integer from 1 to 3');
+  if (config?.maxRunAttempts !== 2) {
+    errors.push('maxRunAttempts must equal 2');
   }
   if (!Array.isArray(config?.transientSteps) || config.transientSteps.length === 0) {
     errors.push('transientSteps must be a non-empty array');
@@ -150,6 +160,11 @@ export function validateRecoveryConfig(config) {
     }
     if (new Set(config.transientSteps).size !== config.transientSteps.length) {
       errors.push('transientSteps must not contain duplicates');
+    }
+    for (const step of config.transientSteps) {
+      if (!SAFE_TRANSIENT_STEPS.has(step)) {
+        errors.push(`${step} is not in the code-owned recovery allowlist`);
+      }
     }
     for (const forbidden of [
       'Static quality gate',
