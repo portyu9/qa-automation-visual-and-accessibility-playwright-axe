@@ -1,0 +1,50 @@
+name: lint-fix-probe
+
+on:
+  push:
+    branches:
+      - security/sever-governance-file-network-dataflow
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.repository == 'portyu9/qa-automation-visual-and-accessibility-playwright-axe' && github.ref == 'refs/heads/security/sever-governance-file-network-dataflow'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact remediation branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: security/sever-governance-file-network-dataflow
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Apply only repository-specific lint declarations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/dependency-governance.mjs')
+          text = path.read_text()
+          shebang = '#!/usr/bin/env node\n'
+          assert text.startswith(shebang)
+          assert '/* global structuredClone, fetch */' not in text
+          assert text.count('let commits = [];') == 1
+          text = text.replace(shebang, shebang + '/* global structuredClone, fetch */\n', 1)
+          text = text.replace('let commits = [];', 'let commits;', 1)
+          path.write_text(text)
+          PY
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = '.github/scripts/dependency-governance.mjs'
+      - name: Canonicalize and verify controller
+        run: |
+          npm ci --ignore-scripts
+          npx prettier --write .github/scripts/dependency-governance.mjs
+          npx eslint .github/scripts/dependency-governance.mjs --max-warnings=0
+      - name: Commit exact lint-only correction
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/scripts/dependency-governance.mjs
+          git commit -m 'style: satisfy repository governance lint profile'
+          git push origin HEAD:security/sever-governance-file-network-dataflow
