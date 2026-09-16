@@ -61,6 +61,11 @@ test('capitalized Security trigger is normalized only for canonical-controller c
   );
 });
 
+test('workflow_run normalization preserves github-script repository context', () => {
+  assert.match(workflow, /\.\.\.context,\s+repo: context\.repo,\s+payload:/u);
+  assert.doesNotMatch(workflow, /\.\.\.context,\s+payload:/u);
+});
+
 test('privileged proposal job is impossible on pull_request', () => {
   assert.match(workflow, /propose-fixes:[\s\S]*github\.event_name == 'schedule'/u);
   assert.doesNotMatch(workflow, /propose-fixes:[\s\S]*github\.event_name == 'pull_request'/u);
