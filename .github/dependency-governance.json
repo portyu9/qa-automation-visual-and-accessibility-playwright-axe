@@ -37,7 +37,10 @@
     ".github/scripts/dependency-governance.selfcheck.mjs",
     ".github/scripts/dependency-recovery-policy.mjs",
     ".github/scripts/dependency-recovery-policy.selfcheck.mjs",
-    ".github/scripts/visual-baseline-trigger.selfcheck.mjs"
+    ".github/scripts/visual-baseline-trigger.selfcheck.mjs",
+    ".github/codeql-autofix.json",
+    ".github/workflows/codeql-autofix.yml",
+    ".github/scripts/codeql-autofix-wrapper.selfcheck.mjs"
   ],
   "ecosystems": {
     "npm": { "files": ["package.json", "package-lock.json"] },

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "defaultBranch": "main",
+  "toolName": "CodeQL",
+  "targetAlertNumbers": [2, 3],
+  "maxAlertsPerRun": 2,
+  "maxChangedFiles": 4,
+  "maxChangedLines": 200,
+  "maxPollAttempts": 12,
+  "pollIntervalSeconds": 10,
+  "branchPrefix": "security/codeql-autofix-",
+  "allowedExtensions": [".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"],
+  "deniedPaths": [
+    ".github/workflows/",
+    ".github/dependabot.yml",
+    ".github/dependency-governance.json",
+    ".github/dependency-recovery.json",
+    ".github/codeql-autofix.json",
+    "package.json",
+    "package-lock.json",
+    "Dockerfile"
+  ],
+  "qualificationWorkflows": ["ci.yml", "security.yml"]
+}
