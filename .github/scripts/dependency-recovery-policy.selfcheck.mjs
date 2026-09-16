@@ -194,6 +194,23 @@ const coreFixture = () => ({
 test('recovery config is valid, bounded, and excludes functional and security findings', () => {
   assert.deepEqual(validateRecoveryConfig(recoveryConfig), []);
   assert.equal(recoveryConfig.maxRunAttempts, 2);
+  assert.deepEqual(
+    new Set(recoveryConfig.transientSteps),
+    new Set([
+      'Checkout',
+      'Set up Node.js',
+      'Pin npm runtime',
+      'Install dependencies',
+      'Install Chromium',
+      'Install browser',
+      'Upload framework evidence',
+      'Upload accessibility evidence',
+      'Upload smoke evidence',
+      'Upload visual comparison evidence',
+      'Upload npm audit evidence',
+      'Upload Trivy security evidence',
+    ]),
+  );
   for (const forbidden of [
     'Static quality gate',
     'Run framework contract gate',
@@ -210,7 +227,18 @@ test('recovery config is valid, bounded, and excludes functional and security fi
   ]) {
     assert.equal(recoveryConfig.transientSteps.includes(forbidden), false, forbidden);
   }
-  assert.ok(validateRecoveryConfig({ ...recoveryConfig, maxRunAttempts: 4 }).length > 0);
+  for (const maxRunAttempts of [1, 3, 4]) {
+    assert.ok(
+      validateRecoveryConfig({ ...recoveryConfig, maxRunAttempts }).length > 0,
+      `maxRunAttempts=${maxRunAttempts} must be rejected`,
+    );
+  }
+  assert.ok(
+    validateRecoveryConfig({
+      ...recoveryConfig,
+      transientSteps: [...recoveryConfig.transientSteps, 'Install future WebKit bootstrap'],
+    }).length > 0,
+  );
 });
 
 test('signature model is narrow and deterministic evidence outranks transient words', () => {
