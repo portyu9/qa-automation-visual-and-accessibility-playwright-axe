@@ -404,7 +404,6 @@ test('qualification proof binds exact workflow identity and tolerates unavailabl
   assert.equal(selectQualificationRun([newerWrongPath, run], fixture.pull, requirement).id, 10);
 });
 
-
 function ownerApiFixture({ validIdentity = true } = {}) {
   const comments = [];
   const reviews = [];
