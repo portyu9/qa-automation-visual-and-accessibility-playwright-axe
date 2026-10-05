@@ -14,10 +14,7 @@
   "maxChangedFiles": 25,
   "maxPullRequestAgeDays": 14,
   "maxPaginationPages": 10,
-  "manualReviewLabels": [
-    "manual-review",
-    "do-not-merge"
-  ],
+  "manualReviewLabels": ["manual-review", "do-not-merge"],
   "requiredWorkflows": [
     {
       "workflow": "CI",
