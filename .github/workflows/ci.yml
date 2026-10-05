@@ -94,6 +94,16 @@ jobs:
             echo "::error::@types/node major $types_major does not match Node runtime major $node_major."
             exit 1
           }
+      - name: Diagnose governance formatting
+        run: |
+          npx prettier --write \
+            .github/dependency-governance.json \
+            .github/scripts/dependency-governance.mjs \
+            .github/scripts/dependency-governance.selfcheck.mjs
+          git diff -- \
+            .github/dependency-governance.json \
+            .github/scripts/dependency-governance.mjs \
+            .github/scripts/dependency-governance.selfcheck.mjs
       - name: Static quality gate
         run: npm run check
       - name: Run framework contract gate
