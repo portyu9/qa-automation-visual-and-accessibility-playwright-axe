@@ -480,10 +480,8 @@ export function validateConfig(config) {
     errors.push('mergeMethod is invalid');
   if (typeof config?.automergeEnabled !== 'boolean')
     errors.push('automergeEnabled must be boolean');
-  if (config?.ownerApprovalRequired !== true)
-    errors.push('ownerApprovalRequired must remain true');
-  if (!nonEmpty(config?.ownerApprovalLogin))
-    errors.push('ownerApprovalLogin must be non-empty');
+  if (config?.ownerApprovalRequired !== true) errors.push('ownerApprovalRequired must remain true');
+  if (!nonEmpty(config?.ownerApprovalLogin)) errors.push('ownerApprovalLogin must be non-empty');
   if (!Number.isInteger(config?.ownerApprovalUserId) || config.ownerApprovalUserId <= 0)
     errors.push('ownerApprovalUserId must be a positive integer');
 
@@ -1133,7 +1131,6 @@ async function upsertComment(api, pullNumber, marker, body) {
   return api.post(`/issues/${pullNumber}/comments`, { body });
 }
 
-
 const OWNER_REVIEW_MARKER = '<!-- dependency-owner-review:v1:';
 const OWNER_APPROVAL_MARKER = '<!-- dependency-owner-approval:v1:';
 const OWNER_REFRESH_MARKER = '<!-- dependency-owner-refresh:v1:';
@@ -1145,7 +1142,10 @@ export async function verifyOwnerIdentity(ownerApi, config) {
     );
   }
   const identity = await ownerApi.get('https://api.github.com/user');
-  if (identity?.login !== config.ownerApprovalLogin || identity?.id !== config.ownerApprovalUserId) {
+  if (
+    identity?.login !== config.ownerApprovalLogin ||
+    identity?.id !== config.ownerApprovalUserId
+  ) {
     throw new Error(
       'DEPENDABOT_OWNER_TOKEN does not authenticate the configured repository owner identity',
     );
@@ -1359,7 +1359,9 @@ async function maybeMerge(api, ownerApi, assessment, config, allowMerge) {
     refreshed.qualification.allSuccess;
   if (!stillEligible) return { merged: false, refreshed };
   await verifyOwnerIdentity(ownerApi, config);
-  if (!(await hasExactOwnerApproval(ownerApi, refreshed.pull.number, refreshed.pull.head.sha, config))) {
+  if (
+    !(await hasExactOwnerApproval(ownerApi, refreshed.pull.number, refreshed.pull.head.sha, config))
+  ) {
     throw new Error('exact-head owner approval disappeared before merge');
   }
 
@@ -1396,7 +1398,13 @@ async function maybeMerge(api, ownerApi, assessment, config, allowMerge) {
   return { merged: result?.merged === true, result, refreshed, dispatches };
 }
 
-async function processPull(api, ownerApi, number, config, { allowMerge, includeQualification = true }) {
+async function processPull(
+  api,
+  ownerApi,
+  number,
+  config,
+  { allowMerge, includeQualification = true },
+) {
   const assessment = await assessPull(api, number, config, { includeQualification });
   if (
     assessment.pull.user?.login !== config.botLogin ||
