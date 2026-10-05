@@ -14,10 +14,21 @@
   "maxChangedFiles": 25,
   "maxPullRequestAgeDays": 14,
   "maxPaginationPages": 10,
-  "manualReviewLabels": ["manual-review", "do-not-merge"],
+  "manualReviewLabels": [
+    "manual-review",
+    "do-not-merge"
+  ],
   "requiredWorkflows": [
-    { "workflow": "CI", "gate": "quality-gate", "file": "ci.yml" },
-    { "workflow": "Security", "gate": "security-gate", "file": "security.yml" }
+    {
+      "workflow": "CI",
+      "gate": "quality-gate",
+      "file": "ci.yml"
+    },
+    {
+      "workflow": "Security",
+      "gate": "security-gate",
+      "file": "security.yml"
+    }
   ],
   "allowedUpdateTypes": [
     "version-update:semver-patch",
@@ -41,14 +52,35 @@
     ".github/scripts/visual-baseline-trigger.selfcheck.mjs",
     ".github/codeql-autofix.json",
     ".github/workflows/codeql-autofix.yml",
-    ".github/scripts/codeql-autofix-wrapper.selfcheck.mjs"
+    ".github/scripts/codeql-autofix-wrapper.selfcheck.mjs",
+    ".github/scripts/validate_codeql_sarif.py",
+    ".github/scripts/validate_codeql_sarif_selfcheck.py",
+    ".github/scripts/validate_security_stack.py"
   ],
   "ecosystems": {
-    "npm": { "files": ["package.json", "package-lock.json"] },
-    "docker": { "files": ["Dockerfile"], "allowedImages": ["node"] },
+    "npm": {
+      "files": [
+        "package.json",
+        "package-lock.json"
+      ]
+    },
+    "docker": {
+      "files": [
+        "Dockerfile"
+      ],
+      "allowedImages": [
+        "node"
+      ]
+    },
     "github-actions": {
       "workflowPrefix": ".github/workflows/",
-      "extensions": [".yml", ".yaml"]
+      "extensions": [
+        ".yml",
+        ".yaml"
+      ]
     }
-  }
+  },
+  "ownerApprovalRequired": true,
+  "ownerApprovalLogin": "portyu9",
+  "ownerApprovalUserId": 35150859
 }
