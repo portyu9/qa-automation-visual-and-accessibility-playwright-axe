@@ -56,25 +56,15 @@
   ],
   "ecosystems": {
     "npm": {
-      "files": [
-        "package.json",
-        "package-lock.json"
-      ]
+      "files": ["package.json", "package-lock.json"]
     },
     "docker": {
-      "files": [
-        "Dockerfile"
-      ],
-      "allowedImages": [
-        "node"
-      ]
+      "files": ["Dockerfile"],
+      "allowedImages": ["node"]
     },
     "github-actions": {
       "workflowPrefix": ".github/workflows/",
-      "extensions": [
-        ".yml",
-        ".yaml"
-      ]
+      "extensions": [".yml", ".yaml"]
     }
   },
   "ownerApprovalRequired": true,
