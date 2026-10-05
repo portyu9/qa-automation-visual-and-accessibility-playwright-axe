@@ -492,6 +492,18 @@ test('owner review and approval bind the exact qualified head', async () => {
   await ensureOwnerReviewAndApproval(owner.api, assessment, config);
   assert.equal(owner.comments.length, 1, 'owner review comment must be idempotent per exact head');
   assert.equal(owner.reviews.length, 1, 'owner approval must be idempotent per exact head');
+
+  const fileDerivedConfig = {
+    ...config,
+    requiredWorkflows: [{ workflow: 'FILE-DERIVED-WORKFLOW', gate: 'file-gate', file: 'file.yml' }],
+  };
+  const isolatedOwner = ownerApiFixture();
+  await ensureOwnerReviewAndApproval(isolatedOwner.api, assessment, fileDerivedConfig);
+  assert.doesNotMatch(isolatedOwner.comments[0].body, /FILE-DERIVED-WORKFLOW/u);
+  assert.match(
+    isolatedOwner.comments[0].body,
+    /All configured exact-head qualification gates: \*\*pass\*\*/u,
+  );
 });
 
 test('manual dispatch PR input accepts only positive safe integers', () => {

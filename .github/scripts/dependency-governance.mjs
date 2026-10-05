@@ -1181,7 +1181,6 @@ export async function ensureOwnerReviewAndApproval(ownerApi, assessment, config)
     throw new Error(`PR #${number} has duplicate exact-head owner review comments`);
   }
   if (exactComments.length === 0) {
-    const qualificationLabel = config.requiredWorkflows.map((item) => item.workflow).join(' / ');
     await ownerApi.post(`/issues/${number}/comments`, {
       body: [
         marker,
@@ -1190,7 +1189,7 @@ export async function ensureOwnerReviewAndApproval(ownerApi, assessment, config)
         `- Exact head: ${headSha}`,
         '- Canonical Dependabot provenance: **pass**',
         '- Semantic dependency scope: **pass**',
-        `- Exact-head ${qualificationLabel} qualification: **pass**`,
+        '- All configured exact-head qualification gates: **pass**',
         '- Action: approve this exact head, revalidate it, then merge only if it remains unchanged and qualified.',
       ].join('\n'),
     });
