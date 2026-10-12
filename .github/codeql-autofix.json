@@ -9,14 +9,7 @@
   "maxPollAttempts": 12,
   "pollIntervalSeconds": 10,
   "branchPrefix": "security/codeql-autofix-",
-  "allowedExtensions": [
-    ".js",
-    ".mjs",
-    ".cjs",
-    ".ts",
-    ".tsx",
-    ".jsx"
-  ],
+  "allowedExtensions": [".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"],
   "deniedPaths": [
     ".github/workflows/",
     ".github/dependabot.yml",
@@ -27,8 +20,5 @@
     "package-lock.json",
     "Dockerfile"
   ],
-  "qualificationWorkflows": [
-    "ci.yml",
-    "security.yml"
-  ]
+  "qualificationWorkflows": ["ci.yml", "security.yml"]
 }
