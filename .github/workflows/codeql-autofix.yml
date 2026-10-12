@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: portyu9/qa-automation-mobile-appium
-          ref: 9280e1cf79bea79c027eabc8abe355ad89e6c010
+          ref: aeab356081f290b29fac24b9d01bdda7a28a7ff7
           path: .codeql-autofix-controller
           persist-credentials: false
           fetch-depth: 1
@@ -88,7 +88,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: portyu9/qa-automation-mobile-appium
-          ref: 9280e1cf79bea79c027eabc8abe355ad89e6c010
+          ref: aeab356081f290b29fac24b9d01bdda7a28a7ff7
           path: .codeql-autofix-controller
           persist-credentials: false
           fetch-depth: 1
