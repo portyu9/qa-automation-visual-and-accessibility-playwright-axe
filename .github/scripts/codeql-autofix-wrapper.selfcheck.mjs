@@ -6,15 +6,15 @@ const config = JSON.parse(fs.readFileSync('.github/codeql-autofix.json', 'utf8')
 const governance = JSON.parse(fs.readFileSync('.github/dependency-governance.json', 'utf8'));
 const workflow = fs.readFileSync('.github/workflows/codeql-autofix.yml', 'utf8');
 
-const controllerSha = '9280e1cf79bea79c027eabc8abe355ad89e6c010';
+const controllerSha = 'aeab356081f290b29fac24b9d01bdda7a28a7ff7';
 const controllerRepo = 'portyu9/qa-automation-mobile-appium';
 
 function sorted(values) {
   return [...values].sort();
 }
 
-test('caller targets only the requested Visual alerts with bounded scope', () => {
-  assert.deepEqual(config.targetAlertNumbers, [2, 3]);
+test('caller uses bounded live CodeQL discovery without fixed alert numbers', () => {
+  assert.equal(Object.hasOwn(config, 'targetAlertNumbers'), false);
   assert.equal(config.maxAlertsPerRun, 2);
   assert.equal(config.maxChangedFiles, 4);
   assert.equal(config.maxChangedLines, 200);
