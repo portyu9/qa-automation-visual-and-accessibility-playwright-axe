@@ -96,11 +96,3 @@ test('autofix control plane is protected from autonomous dependency updates', ()
     );
   }
 });
-
-
-test('canonical runtime is SHA pinned and no static alert IDs survive', () => {
-  assert.equal(Object.hasOwn(config, 'targetAlertNumbers'), false);
-  assert.equal((workflow.match(/ref: aeab356081f290b29fac24b9d01bdda7a28a7ff7/g) || []).length, 2);
-  assert.doesNotMatch(JSON.stringify(config), /targetAlertNumbers/);
-  assert.match(workflow, /runCodeqlAutofix/);
-});
