@@ -15,6 +15,9 @@ test('primary navigation connects deterministic test surfaces', async ({ page })
       reports.push({
         effectiveDirective: event.effectiveDirective,
         violatedDirective: event.violatedDirective,
+        originalPolicy: event.originalPolicy,
+        disposition: event.disposition,
+        statusCode: event.statusCode,
         blockedURI: event.blockedURI,
         sourceFile: event.sourceFile,
         lineNumber: event.lineNumber,
