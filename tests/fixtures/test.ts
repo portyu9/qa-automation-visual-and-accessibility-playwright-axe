@@ -10,8 +10,13 @@ interface QualityFixtures {
 
 export const test = base.extend<QualityFixtures>({
   qualityEnvironment: [
-    async ({ page }, use) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
+    async ({ page, browserName }, use) => {
+      // WebKit's emulated reduced-motion stylesheet can violate the test
+      // server's strict style-src CSP. Keep that CSP strict and avoid
+      // synthesizing styles on WebKit; all visual baselines run in Chromium.
+      if (browserName !== 'webkit') {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+      }
       await use();
     },
     { auto: true },
