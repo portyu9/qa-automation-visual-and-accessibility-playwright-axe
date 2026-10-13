@@ -3,7 +3,10 @@ import { test, expect } from '../fixtures/test.js';
 test('primary navigation connects deterministic test surfaces', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() !== 'error') return;
+    const { url, lineNumber, columnNumber } = message.location();
+    const origin = url ? ` (${url}:${lineNumber}:${columnNumber})` : ' (browser-generated)';
+    consoleErrors.push(`${message.text()}${origin}`);
   });
   page.on('pageerror', (error) => consoleErrors.push(error.message));
 
