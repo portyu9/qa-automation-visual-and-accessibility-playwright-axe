@@ -365,7 +365,6 @@ button {
 }
 .field input,
 .field select {
-  text-overflow: inherit;
   min-height: 44px;
   width: 100%;
   border: 1px solid #9aa6b8;
