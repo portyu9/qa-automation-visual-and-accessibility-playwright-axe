@@ -38,11 +38,8 @@ test('primary navigation connects deterministic test surfaces', async ({ page })
   await page.getByRole('link', { name: 'Components', exact: true }).click();
   await expect(page).toHaveTitle('Component Laboratory | Quality Console');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stateful UI quality checks');
-  const browserCspReports = await page.evaluate(
-    () =>
-      (window as unknown as {
-        __strictCspViolationReports?: Array<Record<string, string | number>>;
-      }).__strictCspViolationReports ?? [],
+  const browserCspReports = await page.evaluate(() =>
+    Reflect.get(window, '__strictCspViolationReports'),
   );
   expect(consoleErrors, `Browser CSP reports: ${JSON.stringify(browserCspReports)}`).toEqual([]);
 });
