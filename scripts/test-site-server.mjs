@@ -31,8 +31,16 @@ const nativeSelectStyleHash = createHash('sha256').update(nativeSelectStyle).dig
 
 const securityHeaders = {
   'Cache-Control': 'no-store',
-  'Content-Security-Policy':
-    `default-src 'self'; img-src 'self' data:; style-src 'self' 'report-sample'; style-src-attr 'unsafe-hashes' 'sha256-${nativeSelectStyleHash}'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "img-src 'self' data:",
+    "style-src 'self' 'report-sample'",
+    `style-src-attr 'unsafe-hashes' 'sha256-${nativeSelectStyleHash}'`,
+    "script-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join('; '),
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
 };
