@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, isAbsolute, relative, resolve } from 'node:path';
@@ -22,10 +23,24 @@ const mimeTypes = new Map([
   ['.svg', 'image/svg+xml'],
 ]);
 
+// WebKit's native <select> control synthesizes exactly `text-overflow:inherit`.
+// Its SHA-256 is allowed for style attributes only; all other inline CSS,
+// inline scripts, and external origins remain blocked by the enforced CSP.
+const nativeSelectStyle = 'text-overflow:inherit';
+const nativeSelectStyleHash = createHash('sha256').update(nativeSelectStyle).digest('base64');
+
 const securityHeaders = {
   'Cache-Control': 'no-store',
-  'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "img-src 'self' data:",
+    "style-src 'self' 'report-sample'",
+    `style-src-attr 'unsafe-hashes' 'sha256-${nativeSelectStyleHash}'`,
+    "script-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join('; '),
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
 };

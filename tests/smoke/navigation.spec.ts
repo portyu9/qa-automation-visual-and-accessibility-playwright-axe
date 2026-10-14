@@ -2,6 +2,32 @@ import { test, expect } from '../fixtures/test.js';
 
 test('primary navigation connects deterministic test surfaces', async ({ page }) => {
   const consoleErrors: string[] = [];
+  // Collect browser-native CSP violation detail before either document loads.
+  // This is diagnostic only: the zero-console-errors assertion remains strict.
+  await page.addInitScript(() => {
+    const reports: Array<Record<string, string | number>> = [];
+    Object.defineProperty(window, '__strictCspViolationReports', {
+      value: reports,
+      writable: false,
+      configurable: false,
+    });
+    document.addEventListener('securitypolicyviolation', (event) => {
+      reports.push({
+        effectiveDirective: event.effectiveDirective,
+        violatedDirective: event.violatedDirective,
+        originalPolicy: event.originalPolicy,
+        disposition: event.disposition,
+        statusCode: event.statusCode,
+        blockedURI: event.blockedURI,
+        sourceFile: event.sourceFile,
+        lineNumber: event.lineNumber,
+        columnNumber: event.columnNumber,
+        sample: event.sample,
+        inlineStyleTags: document.querySelectorAll('style').length,
+        inlineStyleAttributes: document.querySelectorAll('[style]').length,
+      });
+    });
+  });
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const { url, lineNumber, columnNumber } = message.location();
@@ -15,5 +41,9 @@ test('primary navigation connects deterministic test surfaces', async ({ page })
   await page.getByRole('link', { name: 'Components', exact: true }).click();
   await expect(page).toHaveTitle('Component Laboratory | Quality Console');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stateful UI quality checks');
-  expect(consoleErrors).toEqual([]);
+  const browserCspReports = await page.evaluate(() => {
+    const reports: unknown = Reflect.get(window, '__strictCspViolationReports');
+    return reports;
+  });
+  expect(consoleErrors, `Browser CSP reports: ${JSON.stringify(browserCspReports)}`).toEqual([]);
 });

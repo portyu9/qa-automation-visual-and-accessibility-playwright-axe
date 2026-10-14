@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { test, expect } from '@playwright/test';
@@ -58,7 +59,15 @@ test.describe('deterministic fixture server contract', () => {
       const baseURL = `http://127.0.0.1:${port}`;
       const indexResponse = await fetch(`${baseURL}/`);
       expect(indexResponse.status).toBe(200);
-      expect(indexResponse.headers.get('content-security-policy')).toContain("default-src 'self'");
+      const csp = indexResponse.headers.get('content-security-policy') ?? '';
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("style-src 'self' 'report-sample'");
+      // WebKit's built-in select emits one exact style attribute. Independently
+      // compute its hash; the server must not grant any general inline CSS.
+      const selectStyleHash = createHash('sha256').update('text-overflow:inherit').digest('base64');
+      expect(csp).toContain(`style-src-attr 'unsafe-hashes' 'sha256-${selectStyleHash}'`);
+      expect(csp).not.toContain("'unsafe-inline'");
+      expect(csp).toContain("script-src 'self'");
       expect(indexResponse.headers.get('x-content-type-options')).toBe('nosniff');
 
       const traversalResponse = await fetch(`${baseURL}/%2e%2e%2fREADME.md`);
