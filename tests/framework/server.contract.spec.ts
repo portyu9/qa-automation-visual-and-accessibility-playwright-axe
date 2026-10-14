@@ -58,7 +58,16 @@ test.describe('deterministic fixture server contract', () => {
       const baseURL = `http://127.0.0.1:${port}`;
       const indexResponse = await fetch(`${baseURL}/`);
       expect(indexResponse.status).toBe(200);
-      expect(indexResponse.headers.get('content-security-policy')).toContain("default-src 'self'");
+      const csp = indexResponse.headers.get('content-security-policy') ?? '';
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("style-src 'self' 'report-sample'");
+      // WebKit's built-in select emits one exact style attribute. Preserve the
+      // hash-specific CSP exception without permitting general inline styles.
+      expect(csp).toContain(
+        "style-src-attr 'unsafe-hashes' 'sha256-3oFxofzq3N//6J8H86e9ul4WT2OkJrtonB66gn/TLJw='",
+      );
+      expect(csp).not.toContain("'unsafe-inline'");
+      expect(csp).toContain("script-src 'self'");
       expect(indexResponse.headers.get('x-content-type-options')).toBe('nosniff');
 
       const traversalResponse = await fetch(`${baseURL}/%2e%2e%2fREADME.md`);
