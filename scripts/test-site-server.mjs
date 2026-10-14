@@ -22,10 +22,13 @@ const mimeTypes = new Map([
   ['.svg', 'image/svg+xml'],
 ]);
 
+// WebKit's native <select> control synthesizes exactly `text-overflow:inherit`.
+// Its SHA-256 is allowed for style attributes only; all other inline CSS,
+// inline scripts, and external origins remain blocked by the enforced CSP.
 const securityHeaders = {
   'Cache-Control': 'no-store',
   'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'report-sample'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'report-sample'; style-src-attr 'unsafe-hashes' 'sha256-3oFxofzq3N//6J8H86e9ul4WT2OkJrtonB66gn/TLJw='; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
 };
