@@ -15,8 +15,8 @@ test.describe('overview accessibility', () => {
     await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();
     await expect(page.getByRole('contentinfo')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Quality Console home' })).toHaveAccessibleName(
-      'Quality Console home',
+    await expect(page.getByRole('link', { name: 'Q Quality Console home' })).toHaveAccessibleName(
+      'Q Quality Console home',
     );
   });
 
