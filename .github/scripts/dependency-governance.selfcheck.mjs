@@ -25,6 +25,22 @@ const config = JSON.parse(readFileSync('.github/dependency-governance.json', 'ut
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+test('required bot workflow identities exactly match trusted workflow declaration names', () => {
+  assert.ok(Array.isArray(config.requiredWorkflows));
+  assert.ok(config.requiredWorkflows.length > 0);
+  for (const requirement of config.requiredWorkflows) {
+    assert.match(requirement.file, /^[A-Za-z0-9._-]+\.ya?ml$/u);
+    const source = readFileSync(`.github/workflows/${requirement.file}`, 'utf8');
+    const names = [...source.matchAll(/^name: ([A-Za-z0-9._ -]+)\s*$/gmu)];
+    assert.equal(names.length, 1, `must have one top-level name: ${requirement.file}`);
+    assert.equal(
+      requirement.workflow,
+      names[0][1].trim(),
+      `Dependabot workflow '${requirement.workflow}' must match '${requirement.file}' actual native Actions run name`,
+    );
+  }
+});
+
 const meta = (name, updateType = 'version-update:semver-patch') => [
   { name, version: '1.2.4', updateType },
 ];
