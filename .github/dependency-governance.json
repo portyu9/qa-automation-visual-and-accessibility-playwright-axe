@@ -17,12 +17,12 @@
   "manualReviewLabels": ["manual-review", "do-not-merge"],
   "requiredWorkflows": [
     {
-      "workflow": "CI",
+      "workflow": "ci",
       "gate": "quality-gate",
       "file": "ci.yml"
     },
     {
-      "workflow": "Security",
+      "workflow": "security",
       "gate": "security-gate",
       "file": "security.yml"
     }
