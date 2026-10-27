@@ -153,8 +153,10 @@ jobs:
   smoke:
     name: smoke / ${{ matrix.browser }}
     runs-on: ubuntu-24.04
-    # WebKit's Ubuntu system dependencies can exceed the former 20-minute cap
-    # on cold hosted runners. Keep every browser and its strict aggregate gate.
+    # Official, immutable Playwright 1.64.1 Noble image ships all three browsers
+    # and OS dependencies. Avoid unbounded Ubuntu apt downloads on cold runners.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -176,8 +178,23 @@ jobs:
           [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Install browser
-        run: npx playwright install --with-deps "${{ matrix.browser }}"
+      - name: Verify version-matched browser already exists in the pinned image
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { existsSync } from 'node:fs';
+          import { chromium, firefox, webkit } from '@playwright/test';
+
+          assert.equal(process.env.PLAYWRIGHT_BROWSERS_PATH, '/ms-playwright');
+          const browser = { chromium, firefox, webkit }[process.env.BROWSER];
+          assert.ok(browser, 'unrecognized Playwright browser matrix entry');
+          const executable = browser.executablePath();
+          assert.ok(executable.startsWith('/ms-playwright/'), 'browser path escaped pinned image');
+          assert.ok(existsSync(executable), 'matching Playwright browser binary missing');
+          console.log('Pinned browser runtime verified:', process.env.BROWSER, executable);
+          NODE
       - name: Run smoke suite
         run: npm run test:smoke -- --project="${{ matrix.browser }}"
       - name: Validate smoke execution evidence
