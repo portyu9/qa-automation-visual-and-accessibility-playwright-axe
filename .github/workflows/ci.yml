@@ -153,7 +153,9 @@ jobs:
   smoke:
     name: smoke / ${{ matrix.browser }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # WebKit's Ubuntu system dependencies can exceed the former 20-minute cap
+    # on cold hosted runners. Keep every browser and its strict aggregate gate.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
