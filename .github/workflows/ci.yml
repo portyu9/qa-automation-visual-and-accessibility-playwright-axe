@@ -153,11 +153,12 @@ jobs:
   smoke:
     name: smoke / ${{ matrix.browser }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Keep Firefox on the host: Gecko requires the runner's user-namespace sandbox.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        browser: [chromium, firefox]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -174,7 +175,7 @@ jobs:
           [[ "$(npm --version)" == "$NPM_VERSION" ]]
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Install browser
+      - name: Install native runner browser dependencies
         run: npx playwright install --with-deps "${{ matrix.browser }}"
       - name: Run smoke suite
         run: npm run test:smoke -- --project="${{ matrix.browser }}"
@@ -185,6 +186,62 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: smoke-report-${{ matrix.browser }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  smoke-webkit:
+    name: smoke / webkit
+    runs-on: ubuntu-24.04
+    # WebKit-only environment uses proven preinstalled binaries and OS libraries
+    # and OS dependencies. Avoid unbounded Ubuntu apt downloads on cold runners.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Pin npm runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts "npm@${NPM_VERSION}"
+          [[ "$(npm --version)" == "$NPM_VERSION" ]]
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify version-matched browser already exists in the pinned image
+        env:
+          BROWSER: webkit
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { existsSync } from 'node:fs';
+          import { chromium, firefox, webkit } from '@playwright/test';
+
+          assert.equal(process.env.PLAYWRIGHT_BROWSERS_PATH, '/ms-playwright');
+          const browser = { chromium, firefox, webkit }[process.env.BROWSER];
+          assert.ok(browser, 'unrecognized Playwright browser matrix entry');
+          const executable = browser.executablePath();
+          assert.ok(executable.startsWith('/ms-playwright/'), 'browser path escaped pinned image');
+          assert.ok(existsSync(executable), 'matching Playwright browser binary missing');
+          console.log('Pinned browser runtime verified:', process.env.BROWSER, executable);
+          NODE
+      - name: Run smoke suite
+        run: npm run test:smoke -- --project=webkit
+      - name: Validate smoke execution evidence
+        run: node scripts/validate-playwright-evidence.mjs test-results/junit.xml playwright-report/index.html 1 smoke/navigation.spec.ts webkit
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-report-webkit-${{ github.run_id }}
           path: |
             playwright-report/
             test-results/
@@ -315,7 +372,7 @@ jobs:
   quality-gate:
     name: quality-gate
     if: always()
-    needs: [changes, quality, accessibility, smoke, visual]
+    needs: [changes, quality, accessibility, smoke, smoke-webkit, visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -326,6 +383,7 @@ jobs:
           QUALITY: ${{ needs.quality.result }}
           ACCESSIBILITY: ${{ needs.accessibility.result }}
           SMOKE: ${{ needs.smoke.result }}
+          SMOKE_WEBKIT: ${{ needs.smoke-webkit.result }}
           VISUAL: ${{ needs.visual.result }}
           EVENT: ${{ github.event_name }}
         shell: bash
@@ -334,6 +392,7 @@ jobs:
           [[ "$QUALITY" == "success" ]] || { echo "quality=$QUALITY"; exit 1; }
           [[ "$ACCESSIBILITY" == "success" ]] || { echo "accessibility=$ACCESSIBILITY"; exit 1; }
           [[ "$SMOKE" == "success" ]] || { echo "smoke=$SMOKE"; exit 1; }
+          [[ "$SMOKE_WEBKIT" == "success" ]] || { echo "smoke-webkit=$SMOKE_WEBKIT"; exit 1; }
 
           if [[ "$EVENT" == "pull_request" ]]; then
             [[ "$CHANGES" == "success" ]] || { echo "change-scope=$CHANGES"; exit 1; }
