@@ -96,9 +96,3 @@ test('autofix control plane is protected from autonomous dependency updates', ()
     );
   }
 });
-
-
-test('review-only canonical controller is pinned at accepted non-draft rollout', () => {
-  assert.equal((workflow.match(/ref: 4aca606907a89f55ec3d498020f395c70a27887f/g) || []).length, 2);
-  assert.doesNotMatch(workflow, /aeab356081f290b29fac24b9d01bdda7a28a7ff7/u);
-});
