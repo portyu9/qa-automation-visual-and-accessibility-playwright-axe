@@ -96,6 +96,8 @@ jobs:
           }
       - name: Static quality gate
         run: npm run check
+      - name: Validate Playwright container resolution invariants
+        run: node --test scripts/resolve-playwright-runtime.test.mjs
       - name: Run framework contract gate
         run: npm run test:framework
       - name: Validate framework execution evidence
@@ -192,13 +194,41 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  webkit-image:
+    name: resolve-webkit-image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Resolve immutable version-matched WebKit image
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node scripts/resolve-playwright-runtime.mjs)"
+          image="mcr.microsoft.com/playwright:v${version}-noble"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Could not resolve immutable digest for $image"
+            exit 1
+          fi
+          printf 'image=%s@%s\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
+          printf 'WebKit image: `%s@%s`\n' "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
   smoke-webkit:
     name: smoke / webkit
+    needs: webkit-image
     runs-on: ubuntu-24.04
-    # WebKit-only environment uses proven preinstalled binaries and OS libraries
-    # and OS dependencies. Avoid unbounded Ubuntu apt downloads on cold runners.
+    # Resolve the exact npm-locked Playwright image each run, pinning the
+    # registry digest before starting a container (no independent version drift).
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+      image: ${{ needs.webkit-image.outputs.image }}
     timeout-minutes: 40
     steps:
       - name: Checkout
@@ -372,7 +402,7 @@ jobs:
   quality-gate:
     name: quality-gate
     if: always()
-    needs: [changes, quality, accessibility, smoke, smoke-webkit, visual]
+    needs: [changes, quality, accessibility, smoke, webkit-image, smoke-webkit, visual]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -383,6 +413,7 @@ jobs:
           QUALITY: ${{ needs.quality.result }}
           ACCESSIBILITY: ${{ needs.accessibility.result }}
           SMOKE: ${{ needs.smoke.result }}
+          WEBKIT_IMAGE: ${{ needs.webkit-image.result }}
           SMOKE_WEBKIT: ${{ needs.smoke-webkit.result }}
           VISUAL: ${{ needs.visual.result }}
           EVENT: ${{ github.event_name }}
@@ -392,6 +423,7 @@ jobs:
           [[ "$QUALITY" == "success" ]] || { echo "quality=$QUALITY"; exit 1; }
           [[ "$ACCESSIBILITY" == "success" ]] || { echo "accessibility=$ACCESSIBILITY"; exit 1; }
           [[ "$SMOKE" == "success" ]] || { echo "smoke=$SMOKE"; exit 1; }
+          [[ "$WEBKIT_IMAGE" == "success" ]] || { echo "webkit-image=$WEBKIT_IMAGE"; exit 1; }
           [[ "$SMOKE_WEBKIT" == "success" ]] || { echo "smoke-webkit=$SMOKE_WEBKIT"; exit 1; }
 
           if [[ "$EVENT" == "pull_request" ]]; then
