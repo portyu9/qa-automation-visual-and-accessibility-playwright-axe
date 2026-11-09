@@ -21,10 +21,11 @@ on:
       - '.github/workflows/security.yml'
       - '.github/workflows/dependency-governance.yml'
       - '.github/workflows/visual-baseline.yml'
-  pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+  # Public-repo pull_request_target is blocked during GitHub policy brownouts
+  # and by default from December 2, 2026. CI/security completion and hourly
+  # reconciliation trigger privileged governance without that event.
   workflow_run:
-    workflows: [CI, Security]
+    workflows: [ci, security]
     types: [completed]
   schedule:
     - cron: '17 * * * *'
