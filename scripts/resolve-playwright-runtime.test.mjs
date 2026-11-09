@@ -45,7 +45,10 @@ test('accepts a future compatible release without changing workflow pins', () =>
 test('rejects incompatible direct Playwright dependencies', () => {
   const { manifest, lockfile } = fixture();
   manifest.devDependencies['playwright-core'] = '1.2.4';
-  assert.throws(() => resolvePlaywrightVersion(manifest, lockfile), /package.json playwright-core/u);
+  assert.throws(
+    () => resolvePlaywrightVersion(manifest, lockfile),
+    /package.json playwright-core/u,
+  );
 });
 
 test('rejects a mismatched installed browser revision', () => {
