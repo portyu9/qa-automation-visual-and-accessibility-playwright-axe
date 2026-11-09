@@ -547,15 +547,15 @@ test('scheduled reconciliation isolates per-PR failures and reports all outcomes
 
 test('privileged governance uses trusted events, not policy-blocked pull_request_target', () => {
   const workflow = readFileSync('.github/workflows/dependency-governance.yml', 'utf8');
-  assert.match(workflow, /^  push:/mu);
-  assert.match(workflow, /^  pull_request:/mu);
-  assert.doesNotMatch(workflow, /^  pull_request_target:/mu);
-  assert.match(workflow, /^  workflow_run:/mu);
-  assert.match(workflow, /^  schedule:/mu);
-  assert.match(workflow, /^  workflow_dispatch:/mu);
+  assert.match(workflow, /^ {2}push:/mu);
+  assert.match(workflow, /^ {2}pull_request:/mu);
+  assert.doesNotMatch(workflow, /^ {2}pull_request_target:/mu);
+  assert.match(workflow, /^ {2}workflow_run:/mu);
+  assert.match(workflow, /^ {2}schedule:/mu);
+  assert.match(workflow, /^ {2}workflow_dispatch:/mu);
   assert.match(workflow, /if: github.event_name == 'pull_request'/u);
   assert.match(workflow, /if: github.event_name != 'pull_request'/u);
-  const completionTriggers = workflow.match(/^    workflows: \[([^\]\n]+)\]/mu)?.[1];
+  const completionTriggers = workflow.match(/^ {4}workflows: \[([^\]\n]+)\]/mu)?.[1];
   assert.ok(completionTriggers, 'workflow_run must have explicit completion triggers');
   assert.deepEqual(
     completionTriggers.split(',').map((name) => name.trim()),
