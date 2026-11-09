@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolvePlaywrightVersion } from './resolve-playwright-runtime.mjs';
 
 const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
 const packageLock = JSON.parse(await readFile('package-lock.json', 'utf8'));
@@ -93,6 +94,35 @@ for (const snippet of requiredNodeTypeChecks) {
   if (!ci.includes(snippet)) {
     fail(`ci.yml must preserve the dynamic Node declaration compatibility check: ${snippet}`);
   }
+}
+
+// Protect the cross-layer browser invariant from future workflow refactors.
+// A successful npm upgrade must automatically produce an exactly matching,
+// digest-pinned WebKit container, never an independently maintained image tag.
+try {
+  resolvePlaywrightVersion(packageJson, packageLock);
+} catch (error) {
+  fail(`invalid committed Playwright runtime graph: ${error.message}`);
+}
+
+const requiredWebkitResolution = [
+  '  webkit-image:',
+  '    needs: webkit-image',
+  'image: ${{ needs.webkit-image.outputs.image }}',
+  'version="$(node scripts/resolve-playwright-runtime.mjs)"',
+  'docker buildx imagetools inspect "$image"',
+  '[[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]',
+  '[[ "$WEBKIT_IMAGE" == "success" ]]',
+  'node --test scripts/resolve-playwright-runtime.test.mjs',
+];
+for (const snippet of requiredWebkitResolution) {
+  if (!ci.includes(snippet)) {
+    fail(`ci.yml must preserve digest-pinned version-matched WebKit resolution: ${snippet}`);
+  }
+}
+const independentlyPinnedImage = 'image: mcr.microsoft.com/playwright:';
+if (ci.includes(independentlyPinnedImage)) {
+  fail('ci.yml must not pin a Playwright image independently of package-lock.json');
 }
 
 const scripts = packageJson.scripts ?? {};
