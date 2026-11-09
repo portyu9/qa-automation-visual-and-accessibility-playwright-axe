@@ -33,7 +33,9 @@ export function resolvePlaywrightVersion(manifest, lockfile) {
 
   for (const [source, actual] of versions) {
     if (actual !== version) {
-      throw new Error(`Playwright version mismatch: ${source}=${String(actual)}; expected ${version}`);
+      throw new Error(
+        `Playwright version mismatch: ${source}=${String(actual)}; expected ${version}`,
+      );
     }
   }
 
