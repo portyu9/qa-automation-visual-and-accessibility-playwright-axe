@@ -121,7 +121,7 @@ for (const snippet of requiredWebkitResolution) {
     fail(`ci.yml must preserve digest-pinned version-matched WebKit resolution: ${snippet}`);
   }
 }
-if (/image:\\s*mcr\\.microsoft\\.com\\/playwright:/u.test(ci)) {
+if (ci.split('\n').some((line) => line.trim().startsWith('image: mcr.microsoft.com/playwright:'))) {
   fail('ci.yml must not pin a Playwright image independently of package-lock.json');
 }
 
