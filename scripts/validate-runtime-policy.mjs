@@ -96,7 +96,6 @@ for (const snippet of requiredNodeTypeChecks) {
   }
 }
 
-
 // Protect the cross-layer browser invariant from future workflow refactors.
 // A successful npm upgrade must automatically produce an exactly matching,
 // digest-pinned WebKit container, never an independently maintained image tag.
@@ -121,7 +120,9 @@ for (const snippet of requiredWebkitResolution) {
     fail(`ci.yml must preserve digest-pinned version-matched WebKit resolution: ${snippet}`);
   }
 }
-if (ci.split('\n').some((line) => line.trim().startsWith('image: mcr.microsoft.com/playwright:'))) {
+if (
+  ci.split('\n').some((line) => line.trim().startsWith('image: mcr.microsoft.com/playwright:'))
+) {
   fail('ci.yml must not pin a Playwright image independently of package-lock.json');
 }
 
