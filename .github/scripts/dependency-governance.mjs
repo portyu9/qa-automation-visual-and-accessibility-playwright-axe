@@ -827,9 +827,9 @@ export class GitHubApi {
       }
       if (response.ok) return payload;
       if (
-        method === 'GET'
-        && TRANSIENT_GET_HTTP_STATUSES.has(response.status)
-        && attempt < TRANSIENT_GET_ATTEMPTS
+        method === 'GET' &&
+        TRANSIENT_GET_HTTP_STATUSES.has(response.status) &&
+        attempt < TRANSIENT_GET_ATTEMPTS
       ) {
         await sleep(TRANSIENT_GET_DELAY_MS * attempt);
         continue;
