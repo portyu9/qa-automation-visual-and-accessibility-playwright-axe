@@ -3,6 +3,7 @@
 
 import path from 'node:path';
 import process from 'node:process';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import governanceConfig from '../dependency-governance.json' with { type: 'json' };
 
@@ -785,7 +786,11 @@ export function normalizeDependabotHeadBranch(value) {
   return branch;
 }
 
-class GitHubApi {
+const TRANSIENT_GET_HTTP_STATUSES = new Set([500, 502, 503, 504]);
+const TRANSIENT_GET_ATTEMPTS = 3;
+const TRANSIENT_GET_DELAY_MS = 250;
+
+export class GitHubApi {
   constructor({ token, repository, maxPaginationPages }) {
     if (!token) throw new Error('GITHUB_TOKEN is required');
     if (!repository?.includes('/')) throw new Error('GITHUB_REPOSITORY must be owner/repo');
@@ -797,33 +802,44 @@ class GitHubApi {
   }
 
   async request(method, url, body) {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${this.token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'dependency-governance-bot',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await response.text();
-    let payload = null;
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        payload = text;
+    // Only idempotent authenticated reads are retried; never replay owner
+    // reviews, repository dispatches, or protected merge mutations.
+    for (let attempt = 1; attempt <= TRANSIENT_GET_ATTEMPTS; attempt += 1) {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${this.token}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'dependency-governance-bot',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await response.text();
+      let payload = null;
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = text;
+        }
       }
-    }
-    if (!response.ok) {
+      if (response.ok) return payload;
+      if (
+        method === 'GET' &&
+        TRANSIENT_GET_HTTP_STATUSES.has(response.status) &&
+        attempt < TRANSIENT_GET_ATTEMPTS
+      ) {
+        await sleep(TRANSIENT_GET_DELAY_MS * attempt);
+        continue;
+      }
       const message = typeof payload === 'object' ? payload?.message : payload;
       throw new Error(
         `GitHub API ${method} ${url} failed (${response.status}): ${message || 'unknown error'}`,
       );
     }
-    return payload;
+    throw new Error('GitHub GET retry bound exhausted without a terminal response');
   }
 
   get(pathname) {

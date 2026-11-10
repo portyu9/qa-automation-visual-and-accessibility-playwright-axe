@@ -5,6 +5,7 @@ import {
   classifyEcosystem,
   compareSemver,
   ensureOwnerReviewAndApproval,
+  GitHubApi,
   eventPullNumber,
   parseDependabotMetadata,
   parsePositiveInteger,
@@ -567,4 +568,86 @@ test('privileged governance uses trusted events, not policy-blocked pull_request
   assert.match(workflow, /DEPENDABOT_OWNER_TOKEN/);
   assert.doesNotMatch(workflow, /ref:\s*\$\{\{\s*github\.event\.pull_request\.head/);
   assert.doesNotMatch(workflow, /ref:\s*\$\{\{\s*github\.event\.workflow_run\.head_sha/);
+});
+
+function mockGithubApiFetch(outcomes) {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  let index = 0;
+  globalThis.fetch = async (url, options) => {
+    requests.push([url, options.method, options.headers.Authorization]);
+    const status = outcomes[index];
+    index += 1;
+    assert.ok(status, 'unexpected extra request');
+    const payload = status === 200 ? { authenticated: true } : { message: 'fixture error' };
+    return { status, ok: status === 200, text: async () => JSON.stringify(payload) };
+  };
+  return {
+    requests,
+    restore() {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
+
+function testApi() {
+  return new GitHubApi({
+    token: 'fixture-owner-token',
+    repository: 'portyu9/qa-automation-visual-and-accessibility-playwright-axe',
+    maxPaginationPages: 2,
+  });
+}
+
+test('authenticated GET retries only transient GitHub server responses', async () => {
+  for (const status of [500, 502, 503, 504]) {
+    const mock = mockGithubApiFetch([status, 200]);
+    try {
+      const identity = await testApi().get('https://api.github.com/user');
+      assert.deepEqual(identity, { authenticated: true });
+      assert.equal(mock.requests.length, 2);
+      for (const request of mock.requests) {
+        assert.equal(request[0], 'https://api.github.com/user');
+        assert.equal(request[1], 'GET');
+        assert.equal(request[2], 'Bearer fixture-owner-token');
+      }
+    } finally {
+      mock.restore();
+    }
+  }
+});
+
+test('exhausted transient GET responses fail closed at exactly three attempts', async () => {
+  const mock = mockGithubApiFetch([500, 500, 500]);
+  try {
+    await assert.rejects(testApi().get('/pulls/17'), /500/);
+    assert.equal(mock.requests.length, 3);
+  } finally {
+    mock.restore();
+  }
+});
+
+test('unauthorized, policy and rate-limit GET failures never retry', async () => {
+  for (const status of [400, 401, 403, 404, 409, 422, 429]) {
+    const mock = mockGithubApiFetch([status]);
+    try {
+      await assert.rejects(testApi().get('/pulls/17'));
+      assert.equal(mock.requests.length, 1);
+    } finally {
+      mock.restore();
+    }
+  }
+});
+
+test('mutation failures never retry even with transient HTTP 500', async () => {
+  for (const method of ['POST', 'PATCH', 'PUT']) {
+    const mock = mockGithubApiFetch([500]);
+    try {
+      const change = testApi().request(method, '/pulls/17/merge', { method });
+      await assert.rejects(change, /500/);
+      assert.equal(mock.requests.length, 1);
+      assert.equal(mock.requests[0][1], method);
+    } finally {
+      mock.restore();
+    }
+  }
 });
