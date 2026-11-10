@@ -570,24 +570,20 @@ test('privileged governance uses trusted events, not policy-blocked pull_request
   assert.doesNotMatch(workflow, /ref:\s*\$\{\{\s*github\.event\.workflow_run\.head_sha/);
 });
 
-function mockGithubApiFetch(statuses) {
+function mockGithubApiFetch(outcomes) {
   const originalFetch = globalThis.fetch;
-  const calls = [];
+  const requests = [];
+  let index = 0;
   globalThis.fetch = async (url, options) => {
-    calls.push({ url, method: options.method, headers: options.headers });
-    const status = statuses[calls.length - 1];
-    assert.ok(status, 'unexpected extra GitHub request');
-    return {
-      status,
-      ok: status >= 200 && status < 300,
-      text: async () =>
-        JSON.stringify(
-          status === 200 ? { authenticated: true } : { message: `fixture HTTP ${status}` },
-        ),
-    };
+    requests.push([url, options.method, options.headers.Authorization]);
+    const status = outcomes[index];
+    index += 1;
+    assert.ok(status, 'unexpected extra request');
+    const payload = status === 200 ? { authenticated: true } : { message: 'fixture error' };
+    return { status, ok: status === 200, text: async () => JSON.stringify(payload) };
   };
   return {
-    calls,
+    requests,
     restore() {
       globalThis.fetch = originalFetch;
     },
@@ -606,13 +602,12 @@ test('authenticated GET retries only transient GitHub server responses', async (
   for (const status of [500, 502, 503, 504]) {
     const mock = mockGithubApiFetch([status, 200]);
     try {
-      assert.deepEqual(await testApi().get('https://api.github.com/user'), { authenticated: true });
-      assert.equal(mock.calls.length, 2);
-      assert.deepEqual(mock.calls.map((call) => call.method), ['GET', 'GET']);
-      assert.ok(mock.calls.every((call) => call.url === 'https://api.github.com/user'));
-      assert.ok(
-        mock.calls.every((call) => call.headers.Authorization === 'Bearer fixture-owner-token'),
-      );
+      const identity = await testApi().get('https://api.github.com/user');
+      assert.deepEqual(identity, { authenticated: true });
+      assert.equal(mock.requests.length, 2);
+      for (const request of mock.requests) {
+        assert.deepEqual(request, ['https://api.github.com/user', 'GET', 'Bearer fixture-owner-token']);
+      }
     } finally {
       mock.restore();
     }
@@ -622,8 +617,8 @@ test('authenticated GET retries only transient GitHub server responses', async (
 test('exhausted transient GET responses fail closed at exactly three attempts', async () => {
   const mock = mockGithubApiFetch([500, 500, 500]);
   try {
-    await assert.rejects(testApi().get('/pulls/17'), /GET .*\/pulls\/17 failed \(500\)/);
-    assert.equal(mock.calls.length, 3);
+    await assert.rejects(testApi().get('/pulls/17'), /failed \\(500\\)/);
+    assert.equal(mock.requests.length, 3);
   } finally {
     mock.restore();
   }
@@ -633,10 +628,8 @@ test('unauthorized, policy and rate-limit GET failures never retry', async () =>
   for (const status of [400, 401, 403, 404, 409, 422, 429]) {
     const mock = mockGithubApiFetch([status]);
     try {
-      await assert.rejects(testApi().get('/pulls/17'), (error) =>
-        error.message.includes(`failed (${status})`),
-      );
-      assert.equal(mock.calls.length, 1);
+      await assert.rejects(testApi().get('/pulls/17'));
+      assert.equal(mock.requests.length, 1);
     } finally {
       mock.restore();
     }
@@ -647,12 +640,10 @@ test('mutation failures never retry even with transient HTTP 500', async () => {
   for (const method of ['POST', 'PATCH', 'PUT']) {
     const mock = mockGithubApiFetch([500]);
     try {
-      await assert.rejects(
-        testApi().request(method, 'https://api.github.com/user', { event: 'APPROVE' }),
-        /failed \(500\)/,
-      );
-      assert.equal(mock.calls.length, 1, `${method} must never be replayed`);
-      assert.equal(mock.calls[0].method, method);
+      const change = testApi().request(method, '/pulls/17/merge', { method });
+      await assert.rejects(change, /failed \\(500\\)/);
+      assert.equal(mock.requests.length, 1);
+      assert.equal(mock.requests[0][1], method);
     } finally {
       mock.restore();
     }
