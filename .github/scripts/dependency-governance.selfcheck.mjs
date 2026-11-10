@@ -582,9 +582,7 @@ function mockGithubApiFetch(statuses) {
       ok: status >= 200 && status < 300,
       text: async () =>
         JSON.stringify(
-          status === 200
-            ? { authenticated: true }
-            : { message: `fixture HTTP ${status}` },
+          status === 200 ? { authenticated: true } : { message: `fixture HTTP ${status}` },
         ),
     };
   };
@@ -608,9 +606,7 @@ test('authenticated GET retries only transient GitHub server responses', async (
   for (const status of [500, 502, 503, 504]) {
     const mock = mockGithubApiFetch([status, 200]);
     try {
-      assert.deepEqual(await testApi().get('https://api.github.com/user'), {
-        authenticated: true,
-      });
+      assert.deepEqual(await testApi().get('https://api.github.com/user'), { authenticated: true });
       assert.equal(mock.calls.length, 2);
       assert.deepEqual(mock.calls.map((call) => call.method), ['GET', 'GET']);
       assert.ok(mock.calls.every((call) => call.url === 'https://api.github.com/user'));
