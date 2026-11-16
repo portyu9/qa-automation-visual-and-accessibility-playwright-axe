@@ -12,6 +12,8 @@ import {
   parseSemverLike,
   reconcileIndependently,
   requestDependabotRefresh,
+  resolveConcurrentMerge,
+  isExactConcurrentMergeConflict,
   selectQualificationRun,
   validateActionsSemanticChange,
   validateConfig,
@@ -650,4 +652,106 @@ test('mutation failures never retry even with transient HTTP 500', async () => {
       mock.restore();
     }
   }
+});
+
+test('405 merge already in progress is narrowly recognized without replaying PUT', async () => {
+  const api = testApi();
+  const path = `${api.root}/pulls/88/merge`;
+  assert.equal(
+    isExactConcurrentMergeConflict(
+      new Error(`GitHub API PUT ${path} failed (405): Merge already in progress`),
+      api,
+      88,
+    ),
+    true,
+  );
+  for (const error of [
+    `GitHub API PUT ${path} failed (405): Method not allowed`,
+    `GitHub API PUT ${path} failed (403): Merge already in progress`,
+    `GitHub API POST ${path} failed (405): Merge already in progress`,
+    `GitHub API PUT ${api.root}/pulls/89/merge failed (405): Merge already in progress`,
+  ]) {
+    assert.equal(isExactConcurrentMergeConflict(new Error(error), api, 88), false);
+  }
+});
+
+test('concurrent merge resolver accepts only exact head and verified merge commit', async () => {
+  const head = 'a'.repeat(40);
+  const merge = 'b'.repeat(40);
+  const requests = [];
+  const waits = [];
+  const api = {
+    async get(path) {
+      requests.push(path);
+      if (requests.length === 1) {
+        return { number: 88, head: { sha: head }, state: 'open', merged: false };
+      }
+      return {
+        number: 88,
+        head: { sha: head },
+        state: 'closed',
+        merged: true,
+        merge_commit_sha: merge,
+      };
+    },
+  };
+  const result = await resolveConcurrentMerge(api, 88, head, {
+    pause: async (ms) => waits.push(ms),
+  });
+  assert.deepEqual(result, { merged: true, sha: merge });
+  assert.deepEqual(requests, ['/pulls/88', '/pulls/88']);
+  assert.deepEqual(waits, [250]);
+});
+
+test('concurrent merge resolver defers boundedly if GitHub is still merging', async () => {
+  const head = 'a'.repeat(40);
+  let reads = 0;
+  const waits = [];
+  const api = {
+    async get(path) {
+      assert.equal(path, '/pulls/88');
+      reads += 1;
+      return { number: 88, head: { sha: head }, state: 'open', merged: false };
+    },
+  };
+  const result = await resolveConcurrentMerge(api, 88, head, {
+    pause: async (ms) => waits.push(ms),
+  });
+  assert.deepEqual(result, { merged: false, deferred: true });
+  assert.equal(reads, 3);
+  assert.deepEqual(waits, [250, 500]);
+});
+
+test('concurrent merge resolver fails closed on changed head and ambiguous terminal state', async () => {
+  const head = 'a'.repeat(40);
+  for (const live of [
+    {
+      number: 88,
+      head: { sha: 'b'.repeat(40) },
+      state: 'closed',
+      merged: true,
+      merge_commit_sha: 'c'.repeat(40),
+    },
+    { number: 88, head: { sha: head }, state: 'closed', merged: false },
+    { number: 88, head: { sha: head }, state: 'closed', merged: true },
+    {
+      number: 89,
+      head: { sha: head },
+      state: 'closed',
+      merged: true,
+      merge_commit_sha: 'c'.repeat(40),
+    },
+  ]) {
+    const api = { get: async () => live };
+    await assert.rejects(
+      resolveConcurrentMerge(api, 88, head, {
+        pause: async () => {
+          throw new Error('must not wait');
+        },
+      }),
+      /concurrent merge resolution/,
+    );
+  }
+  const api = { get: async () => null };
+  await assert.rejects(resolveConcurrentMerge(api, 88, 'non-sha'), /bounded exact-head identity/);
 });
