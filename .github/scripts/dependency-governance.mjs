@@ -1036,13 +1036,17 @@ async function qualificationForHead(api, pull, config) {
   return { allSuccess, anyFailed, qualifications };
 }
 
-function renderComment({ assessment, config, merged = false, mergeDeferred = false, dispatches = [] }) {
+function renderComment({
+  assessment,
+  config,
+  merged = false,
+  mergeDeferred = false,
+  dispatches = [],
+}) {
   const { pull, provenance, metadataAssessment, ecosystem, semantic, qualification, baseSha } =
     assessment;
   const state = merged
     ? '✅ merged by governed automation'
-    : mergeDeferred
-      ? '⏳ exact-head qualified; GitHub reports a concurrent merge still in progress'
     : !provenance.eligible || !metadataAssessment.eligible || !semantic.eligible
       ? '🛑 manual review required'
       : qualification?.allSuccess
@@ -1051,11 +1055,15 @@ function renderComment({ assessment, config, merged = false, mergeDeferred = fal
           ? '❌ qualification failed'
           : '⏳ eligible; waiting for required qualification';
 
+  const displayState = mergeDeferred
+    ? '⏳ exact-head qualified; GitHub reports a concurrent merge still in progress'
+    : state;
+
   const lines = [
     config.statusCommentMarker,
     '### Dependency governance',
     '',
-    `**State:** ${state}`,
+    `**State:** ${displayState}`,
     '',
     '| Proof | Result |',
     '| --- | --- |',
@@ -1362,11 +1370,19 @@ async function assessPull(api, number, config, { includeQualification = true } =
  * terminal state; only a verified merged=true may count as success.
  */
 export async function resolveConcurrentMerge(
-  api, number, expectedHead, { pause = sleep, attempts = 3 } = {},
+  api,
+  number,
+  expectedHead,
+  { pause = sleep, attempts = 3 } = {},
 ) {
-  if (!Number.isSafeInteger(number) || number < 1 ||
-      !/^[0-9a-f]{40}$/.test(expectedHead) ||
-      !Number.isSafeInteger(attempts) || attempts < 1 || attempts > 3) {
+  if (
+    !Number.isSafeInteger(number) ||
+    number < 1 ||
+    !/^[0-9a-f]{40}$/.test(expectedHead) ||
+    !Number.isSafeInteger(attempts) ||
+    attempts < 1 ||
+    attempts > 3
+  ) {
     throw new Error('concurrent merge resolution requires bounded exact-head identity');
   }
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -1374,8 +1390,11 @@ export async function resolveConcurrentMerge(
     if (live?.number !== number || live?.head?.sha !== expectedHead) {
       throw new Error('concurrent merge resolution observed changed PR identity or head');
     }
-    if (live.state === 'closed' && live.merged === true &&
-        /^[0-9a-f]{40}$/.test(live.merge_commit_sha || '')) {
+    if (
+      live.state === 'closed' &&
+      live.merged === true &&
+      /^[0-9a-f]{40}$/.test(live.merge_commit_sha || '')
+    ) {
       return { merged: true, sha: live.merge_commit_sha };
     }
     if (live.state !== 'open') {
@@ -1387,9 +1406,11 @@ export async function resolveConcurrentMerge(
 }
 
 export function isExactConcurrentMergeConflict(error, api, number) {
-  return error instanceof Error &&
+  return (
+    error instanceof Error &&
     error.message ===
-      `GitHub API PUT ${api.root}/pulls/${number}/merge failed (405): Merge already in progress`;
+      `GitHub API PUT ${api.root}/pulls/${number}/merge failed (405): Merge already in progress`
+  );
 }
 
 async function maybeMerge(api, ownerApi, assessment, config, allowMerge) {
@@ -1428,7 +1449,9 @@ async function maybeMerge(api, ownerApi, assessment, config, allowMerge) {
         'Qualified and merged by dependency governance after provenance, semantic-scope, exact-base, and all configured qualification gates.',
     });
   } catch (error) {
-    if (!isExactConcurrentMergeConflict(error, api, refreshed.pull.number)) throw error;
+    if (!isExactConcurrentMergeConflict(error, api, refreshed.pull.number)) {
+      throw error;
+    }
     // Do not replay a non-idempotent merge request. The next trusted wake will
     // reconcile if GitHub has not yet completed the first merge.
     result = await resolveConcurrentMerge(api, refreshed.pull.number, refreshed.pull.head.sha);
