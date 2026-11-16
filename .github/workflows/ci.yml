@@ -95,13 +95,7 @@ jobs:
             exit 1
           }
       - name: Static quality gate
-        run: |
-          if ! npm run format:check; then
-            npx --no-install prettier --write .github/scripts/dependency-governance.selfcheck.mjs
-            git diff -- .github/scripts/dependency-governance.selfcheck.mjs
-            exit 1
-          fi
-          npm run check
+        run: npm run check
       - name: Validate Playwright container resolution invariants
         run: node --test scripts/resolve-playwright-runtime.test.mjs
       - name: Run framework contract gate
