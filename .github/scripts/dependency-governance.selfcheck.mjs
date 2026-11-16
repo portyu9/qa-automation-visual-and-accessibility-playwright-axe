@@ -753,8 +753,5 @@ test('concurrent merge resolver fails closed on changed head and ambiguous termi
     );
   }
   const api = { get: async () => null };
-  await assert.rejects(
-    resolveConcurrentMerge(api, 88, 'non-sha'),
-    /bounded exact-head identity/,
-  );
+  await assert.rejects(resolveConcurrentMerge(api, 88, 'non-sha'), /bounded exact-head identity/);
 });
