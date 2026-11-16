@@ -686,8 +686,13 @@ test('concurrent merge resolver accepts only exact head and verified merge commi
       if (requests.length === 1) {
         return { number: 88, head: { sha: head }, state: 'open', merged: false };
       }
-      return { number: 88, head: { sha: head }, state: 'closed', merged: true,
-        merge_commit_sha: merge };
+      return {
+        number: 88,
+        head: { sha: head },
+        state: 'closed',
+        merged: true,
+        merge_commit_sha: merge,
+      };
     },
   };
   const result = await resolveConcurrentMerge(api, 88, head, {
@@ -702,13 +707,16 @@ test('concurrent merge resolver defers boundedly if GitHub is still merging', as
   const head = 'a'.repeat(40);
   let reads = 0;
   const waits = [];
-  const result = await resolveConcurrentMerge({
+  const api = {
     async get(path) {
       assert.equal(path, '/pulls/88');
       reads += 1;
       return { number: 88, head: { sha: head }, state: 'open', merged: false };
     },
-  }, 88, head, { pause: async (ms) => waits.push(ms) });
+  };
+  const result = await resolveConcurrentMerge(api, 88, head, {
+    pause: async (ms) => waits.push(ms),
+  });
   assert.deepEqual(result, { merged: false, deferred: true });
   assert.equal(reads, 3);
   assert.deepEqual(waits, [250, 500]);
@@ -717,19 +725,36 @@ test('concurrent merge resolver defers boundedly if GitHub is still merging', as
 test('concurrent merge resolver fails closed on changed head and ambiguous terminal state', async () => {
   const head = 'a'.repeat(40);
   for (const live of [
-    { number: 88, head: { sha: 'b'.repeat(40) }, state: 'closed', merged: true,
-      merge_commit_sha: 'c'.repeat(40) },
+    {
+      number: 88,
+      head: { sha: 'b'.repeat(40) },
+      state: 'closed',
+      merged: true,
+      merge_commit_sha: 'c'.repeat(40),
+    },
     { number: 88, head: { sha: head }, state: 'closed', merged: false },
     { number: 88, head: { sha: head }, state: 'closed', merged: true },
-    { number: 89, head: { sha: head }, state: 'closed', merged: true,
-      merge_commit_sha: 'c'.repeat(40) },
+    {
+      number: 89,
+      head: { sha: head },
+      state: 'closed',
+      merged: true,
+      merge_commit_sha: 'c'.repeat(40),
+    },
   ]) {
+    const api = { get: async () => live };
     await assert.rejects(
-      resolveConcurrentMerge({ get: async () => live }, 88, head,
-        { pause: async () => { throw new Error('must not wait'); } }),
+      resolveConcurrentMerge(api, 88, head, {
+        pause: async () => {
+          throw new Error('must not wait');
+        },
+      }),
       /concurrent merge resolution/,
     );
   }
-  await assert.rejects(resolveConcurrentMerge({ get: async () => null },
-    88, 'non-sha'), /bounded exact-head identity/);
+  const api = { get: async () => null };
+  await assert.rejects(
+    resolveConcurrentMerge(api, 88, 'non-sha'),
+    /bounded exact-head identity/,
+  );
 });
