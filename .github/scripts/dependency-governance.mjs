@@ -351,6 +351,72 @@ export function validateDockerSemanticChange(baseText, headText, metadata, allow
   return { eligible: reasons.length === 0, reasons: unique(reasons), changes };
 }
 
+/**
+ * Project one signed Dependabot Docker image update onto independently
+ * advanced main without copying unrelated bot-branch data.
+ * Caller must separately verify the signed bot commit and bind every file to
+ * an exact SHA. This pure function NEVER publishes, approves, or merges.
+ */
+export function projectSignedDockerDelta({
+  sourceBaseText,
+  signedHeadText,
+  currentMainText,
+  signedMetadata,
+  allowedImages,
+}) {
+  const texts = [sourceBaseText, signedHeadText, currentMainText];
+  if (texts.some((value) => typeof value !== 'string' || value.includes('\r'))) {
+    throw new Error('Docker salvage requires exact UTF-8 LF source/base/main text');
+  }
+  if (!Array.isArray(signedMetadata) || !Array.isArray(allowedImages)) {
+    throw new Error('Docker salvage requires verified signed metadata and an image allowlist');
+  }
+
+  const original = sourceBaseText.split('\n');
+  const signed = signedHeadText.split('\n');
+  const live = currentMainText.split('\n');
+  const semantic = validateDockerSemanticChange(
+    sourceBaseText, signedHeadText, signedMetadata, allowedImages,
+  );
+  if (!semantic.eligible) {
+    throw new Error('signed Docker delta is ineligible: ' + semantic.reasons.join('; '));
+  }
+  const changed = original.flatMap((line, index) => (line === signed[index] ? [] : [index]));
+  // This initial projector allows ONE image update. Grouped Docker upgrades
+  // require a separate explicitly reviewed multi-line contract.
+  if (changed.length !== 1) {
+    throw new Error('Docker salvage requires exactly one signed image-line update');
+  }
+  const proposed = parseDockerImageReference(signed[changed[0]]);
+  const exactMetadata = proposed && signedMetadata.filter((item) =>
+    (item.name === proposed.image || item.name === proposed.image.split('/').at(-1))
+    && item.version === proposed.tag);
+  if (!exactMetadata || exactMetadata.length !== 1) {
+    throw new Error('signed dependency metadata must exactly match one proposed Docker image tag');
+  }
+  if (live.length !== original.length) {
+    throw new Error('Dockerfile line structure changed on main; refuse unsafe projection');
+  }
+  const index = changed[0];
+  if (live[index] === signed[index]) {
+    return { state: 'already-accepted', content: currentMainText, index, changes: semantic.changes };
+  }
+  if (live[index] !== original[index]) {
+    throw new Error('current main changed the same Docker image; signed proposal conflicts');
+  }
+
+  const projected = live.slice();
+  projected[index] = signed[index];
+  const content = projected.join('\n');
+  const rechecked = validateDockerSemanticChange(
+    currentMainText, content, signedMetadata, allowedImages,
+  );
+  if (!rechecked.eligible) {
+    throw new Error('projected Docker update is ineligible: ' + rechecked.reasons.join('; '));
+  }
+  return { state: 'projected', content, index, changes: rechecked.changes };
+}
+
 function parseActionUseLine(line) {
   const match = line.match(
     /^(\s*-?\s*uses:\s*)([^\s@]+)@([a-f0-9]{40}|[a-f0-9]{64})(\s+#\s*v?(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*)$/i,
