@@ -501,6 +501,13 @@ export function validateConfig(config) {
     errors.push('maxPullRequestAgeDays must be an integer from 1 to 90');
   }
   if (
+    !Number.isSafeInteger(config?.nativeRefreshEscalationMinutes) ||
+    config.nativeRefreshEscalationMinutes < 30 ||
+    config.nativeRefreshEscalationMinutes > 1440
+  ) {
+    errors.push('nativeRefreshEscalationMinutes must be an integer from 30 to 1440');
+  }
+  if (
     !Number.isInteger(config?.maxPaginationPages) ||
     config.maxPaginationPages < 1 ||
     config.maxPaginationPages > 20
@@ -1233,39 +1240,52 @@ export async function ensureOwnerReviewAndApproval(ownerApi, assessment, config)
   }
 }
 
-export async function requestDependabotRefresh(ownerApi, assessment, config) {
+export async function requestDependabotRefresh(ownerApi, assessment, config, { observedAt = new Date() } = {}) {
+  // Only canonical signed Dependabot provenance that is stale *solely* against
+  // accepted main may request a native bot rewrite. No owner ref mutation.
   const staleReason = 'PR is not rebased directly on the current base branch head';
-  if (
-    assessment.provenance.reasons.length !== 1 ||
-    assessment.provenance.reasons[0] !== staleReason
-  ) {
-    return false;
-  }
-
+  if (assessment.provenance.reasons.length !== 1 || assessment.provenance.reasons[0] !== staleReason) return false;
   await verifyOwnerIdentity(ownerApi, config);
+  if (!(observedAt instanceof Date) || !Number.isFinite(observedAt.getTime())) {
+    throw new Error('Dependabot refresh observation clock is not valid');
+  }
   const number = assessment.pull.number;
   const headSha = String(assessment.pull.head?.sha || '');
-  const marker = `${OWNER_REFRESH_MARKER}${headSha}:${assessment.baseSha}:rebase -->`;
+  const markerFor = (command) => `${OWNER_REFRESH_MARKER}${headSha}:${assessment.baseSha}:${command} -->`;
   const comments = await ownerApi.paginate(`/issues/${number}/comments`);
-  if (
-    comments.some(
-      (comment) =>
-        String(comment.body || '').includes(marker) &&
-        comment.user?.login === config.ownerApprovalLogin &&
-        comment.user?.id === config.ownerApprovalUserId,
-    )
-  ) {
-    return true;
+  const matching = (command) => comments.filter((comment) =>
+    String(comment.body || '').includes(markerFor(command))
+    && comment.user?.login === config.ownerApprovalLogin
+    && comment.user?.id === config.ownerApprovalUserId
+    && comment.performed_via_github_app == null);
+  const priorRebases = matching('rebase');
+  const priorRecreates = matching('recreate');
+  if (priorRebases.length > 1 || priorRecreates.length > 1) {
+    throw new Error('ambiguous owner-authenticated Dependabot refresh markers');
   }
-
-  await ownerApi.post(`/issues/${number}/comments`, {
-    body: [
-      '@dependabot rebase',
-      '',
-      marker,
-      'Requested by the configured push-capable repository owner because the exact Dependabot source commit is no longer parented on current main. Qualification restarts on the new exact head; no merge or security gate is bypassed.',
-    ].join('\n'),
-  });
+  let command = 'rebase';
+  if (priorRebases.length === 1) {
+    const issuedAt = priorRebases[0].created_at;
+    const timestamp = typeof issuedAt === 'string' ? Date.parse(issuedAt) : NaN;
+    // Missing, invalid or future timestamps cannot grant escalation authority.
+    if (Number.isFinite(timestamp)
+      && observedAt.getTime() - timestamp >= config.nativeRefreshEscalationMinutes * 60_000) {
+      command = 'recreate';
+    } else {
+      return true;
+    }
+  }
+  if (command === 'recreate' && priorRecreates.length === 1) return true;
+  if (command === 'rebase' && priorRebases.length === 1) return true;
+  await ownerApi.post(`/issues/${number}/comments`, { body: [
+    `@dependabot ${command}`,
+    '',
+    markerFor(command),
+    `Owner-authenticated ${command} for the same signed Dependabot proposal against accepted main. `
+      + 'Recreate is allowed only after the bounded native rebase lease expires without a new head. '
+      + 'Any replacement must be a new canonical signed Dependabot commit and pass every exact-head CI, '
+      + 'security, and provenance gate. No privileged ref write or unreviewed lifecycle approval occurs.',
+  ].join('\n') });
   return true;
 }
 
