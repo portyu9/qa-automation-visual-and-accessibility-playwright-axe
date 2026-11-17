@@ -505,24 +505,41 @@ test('stalled signed Dependabot refresh escalates once after configured lease; r
   const assessment = {
     pull: fixture.pull,
     baseSha: 'c'.repeat(40),
-    provenance: { eligible: false, reasons: ['PR is not rebased directly on the current base branch head'] },
+    provenance: {
+      eligible: false,
+      reasons: ['PR is not rebased directly on the current base branch head'],
+    },
   };
   const owner = ownerApiFixture();
-  assert.equal(await requestDependabotRefresh(owner.api, assessment, config, { observedAt: start }), true);
+  assert.equal(
+    await requestDependabotRefresh(owner.api, assessment, config, { observedAt: start }),
+    true,
+  );
   assert.match(owner.posts[0].body.body, /^@dependabot rebase\n/mu);
   owner.comments[0].created_at = start.toISOString();
   const justBefore = new Date(start.getTime() + config.nativeRefreshEscalationMinutes * 60_000 - 1);
-  assert.equal(await requestDependabotRefresh(owner.api, assessment, config, { observedAt: justBefore }), true);
+  assert.equal(
+    await requestDependabotRefresh(owner.api, assessment, config, { observedAt: justBefore }),
+    true,
+  );
   assert.equal(owner.posts.length, 1);
   const expired = new Date(start.getTime() + config.nativeRefreshEscalationMinutes * 60_000);
-  assert.equal(await requestDependabotRefresh(owner.api, assessment, config, { observedAt: expired }), true);
+  assert.equal(
+    await requestDependabotRefresh(owner.api, assessment, config, { observedAt: expired }),
+    true,
+  );
   assert.equal(owner.posts.length, 2);
   assert.match(owner.posts[1].body.body, /^@dependabot recreate\n/mu);
   assert.match(owner.posts[1].body.body, new RegExp(fixture.headSha));
   assert.match(owner.posts[1].body.body, new RegExp(assessment.baseSha));
-  await requestDependabotRefresh(owner.api, assessment, config, { observedAt: new Date(expired.getTime() + 86_400_000) });
+  await requestDependabotRefresh(owner.api, assessment, config, {
+    observedAt: new Date(expired.getTime() + 86_400_000),
+  });
   assert.equal(owner.posts.length, 2, 'same signed head must never receive duplicate recreate');
-  const newHead = { ...assessment, pull: { ...assessment.pull, head: { ...assessment.pull.head, sha: 'd'.repeat(40) } } };
+  const newHead = {
+    ...assessment,
+    pull: { ...assessment.pull, head: { ...assessment.pull.head, sha: 'd'.repeat(40) } },
+  };
   await requestDependabotRefresh(owner.api, newHead, config, { observedAt: expired });
   assert.equal(owner.posts.length, 3, 'new exact bot head gets a fresh native rebase');
   assert.match(owner.posts[2].body.body, /^@dependabot rebase\n/mu);
@@ -535,16 +552,33 @@ test('stalled signed Dependabot refresh escalates once after configured lease; r
     assert.equal(held.posts.length, 1, 'unknown/future rebase time must not authorize recreate');
   }
   const attacker = ownerApiFixture();
-  attacker.comments.push({ body: owner.posts[0].body.body, created_at: start.toISOString(), user: { login: 'impostor', id: 1 } });
+  attacker.comments.push({
+    body: owner.posts[0].body.body,
+    created_at: start.toISOString(),
+    user: { login: 'impostor', id: 1 },
+  });
   await requestDependabotRefresh(attacker.api, assessment, config, { observedAt: expired });
   assert.equal(attacker.posts.length, 1, 'spoofed rebase does not authorize recreate');
   assert.match(attacker.posts[0].body.body, /^@dependabot rebase\n/mu);
   await assert.rejects(
-    () => requestDependabotRefresh(owner.api, assessment, config, { observedAt: new Date('invalid') }),
+    () =>
+      requestDependabotRefresh(owner.api, assessment, config, { observedAt: new Date('invalid') }),
     /observation clock/,
   );
-  const unsafe = { ...assessment, provenance: { eligible: false, reasons: ['PR is not rebased directly on the current base branch head', 'invalid signed source'] } };
-  assert.equal(await requestDependabotRefresh(owner.api, unsafe, config, { observedAt: expired }), false);
+  const unsafe = {
+    ...assessment,
+    provenance: {
+      eligible: false,
+      reasons: [
+        'PR is not rebased directly on the current base branch head',
+        'invalid signed source',
+      ],
+    },
+  };
+  assert.equal(
+    await requestDependabotRefresh(owner.api, unsafe, config, { observedAt: expired }),
+    false,
+  );
 });
 
 test('owner review and approval bind the exact qualified head', async () => {
