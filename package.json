@@ -11,7 +11,7 @@
   "scripts": {
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run runtime-policy:check && npm run docs:check && npm run workflow-pins:check",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write .github/dependency-governance.json .github/scripts/dependency-governance.mjs .github/scripts/dependency-governance.selfcheck.mjs && git --no-pager diff -- .github/dependency-governance.json .github/scripts/dependency-governance.mjs .github/scripts/dependency-governance.selfcheck.mjs && exit 1",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "runtime-policy:check": "node scripts/validate-runtime-policy.mjs",
