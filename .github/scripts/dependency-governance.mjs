@@ -1657,10 +1657,9 @@ async function processPull(
       assessment.pull.head?.sha,
       error,
     );
-    throw new Error(
-      'Dependency fallback incident #' + incident.incident + ': ' + error.message,
-      { cause: error },
-    );
+    throw new Error('Dependency fallback incident #' + incident.incident + ': ' + error.message, {
+      cause: error,
+    });
   }
   if (['verified', 'already-accepted'].includes(fallbackResult?.state)) {
     return {
