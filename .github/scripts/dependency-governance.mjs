@@ -1640,7 +1640,7 @@ async function processPull(
   }
 
   await requestDependabotRefresh(ownerApi, assessment, config);
-  let fallbackResult = null;
+  let fallbackResult;
   try {
     fallbackResult = await runStaleDockerFallback({
       api,
@@ -1657,7 +1657,7 @@ async function processPull(
       assessment.pull.head?.sha,
       error,
     );
-    throw new Error('Dependency fallback incident #' + incident.incident + ': ' + error.message);
+    throw new Error('Dependency fallback incident #' + incident.incident + ': ' + error.message, { cause: error });
   }
   if (['verified', 'already-accepted'].includes(fallbackResult?.state)) {
     return {
