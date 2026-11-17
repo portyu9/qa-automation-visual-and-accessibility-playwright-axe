@@ -436,6 +436,98 @@ export function projectSignedDockerDelta({
   return { state: 'projected', content, index, changes: rechecked.changes };
 }
 
+/**
+ * Reconcile exactly ONE GitHub Actions SHA pin from a canonical signed
+ * Dependabot commit onto the currently accepted workflow. No YAML rewrite:
+ * every unrelated byte, action identity, and already-accepted pin survives.
+ * The caller verifies all GitHub source/file/commit identities separately.
+ */
+export function projectSignedActionsDelta({
+  sourceBaseText,
+  signedHeadText,
+  currentMainText,
+  signedMetadata,
+  workflowPath,
+  manualReviewPaths,
+}) {
+  if (
+    typeof workflowPath !== 'string' ||
+    !/^\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/.test(workflowPath) ||
+    !Array.isArray(manualReviewPaths) ||
+    manualReviewPaths.includes(workflowPath)
+  ) {
+    throw new Error('Actions fallback excludes control-plane and unreviewed workflow paths');
+  }
+  if (!Array.isArray(signedMetadata) || signedMetadata.length !== 1) {
+    throw new Error(
+      'Actions fallback requires exactly one canonical signed update metadata record',
+    );
+  }
+  const texts = [sourceBaseText, signedHeadText, currentMainText];
+  if (
+    texts.some((text) => typeof text !== 'string' || text.includes('\r') || text.includes('\0'))
+  ) {
+    throw new Error('Actions fallback requires exact UTF-8 LF source/parent/main bytes');
+  }
+  const source = sourceBaseText.split('\n');
+  const signed = signedHeadText.split('\n');
+  const live = currentMainText.split('\n');
+  if (signed.length !== source.length || live.length !== source.length) {
+    throw new Error('Actions workflow line structure changed; refuse unsafe projection');
+  }
+  const indices = source.flatMap((value, index) => (value === signed[index] ? [] : [index]));
+  if (indices.length !== 1) {
+    throw new Error('Actions fallback requires exactly one signed SHA pin line update');
+  }
+  const index = indices[0];
+  const before = parseActionUseLine(source[index]);
+  const after = parseActionUseLine(signed[index]);
+  if (
+    !before ||
+    !after ||
+    before.action !== after.action ||
+    before.sha === after.sha ||
+    signedMetadata[0].name !== after.action
+  ) {
+    throw new Error('Signed Actions source must update one SHA-pinned allowlisted action identity');
+  }
+  const sourceProof = validateActionsSemanticChange(
+    [workflowPath],
+    { [workflowPath]: sourceBaseText },
+    { [workflowPath]: signedHeadText },
+    signedMetadata,
+    manualReviewPaths,
+  );
+  if (!sourceProof.eligible) {
+    throw new Error('Signed Actions update is ineligible: ' + sourceProof.reasons.join('; '));
+  }
+  if (live[index] === signed[index]) {
+    return {
+      state: 'already-accepted',
+      content: currentMainText,
+      index,
+      changes: sourceProof.changes,
+    };
+  }
+  if (live[index] !== source[index]) {
+    throw new Error('Accepted main already changed the same GitHub Actions pin; refuse conflict');
+  }
+  const revised = live.slice();
+  revised[index] = signed[index];
+  const content = revised.join('\n');
+  const proof = validateActionsSemanticChange(
+    [workflowPath],
+    { [workflowPath]: currentMainText },
+    { [workflowPath]: content },
+    signedMetadata,
+    manualReviewPaths,
+  );
+  if (!proof.eligible) {
+    throw new Error('Projected Actions update is ineligible: ' + proof.reasons.join('; '));
+  }
+  return { state: 'projected', content, index, changes: proof.changes };
+}
+
 function parseActionUseLine(line) {
   const match = line.match(
     /^(\s*-?\s*uses:\s*)([^\s@]+)@([a-f0-9]{40}|[a-f0-9]{64})(\s+#\s*v?(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*)$/i,
@@ -1648,7 +1740,13 @@ async function processPull(
       assessment,
       config,
       allowMerge,
-      helpers: { verifyOwnerIdentity, assessPull, projectSignedDockerDelta, qualificationForHead },
+      helpers: {
+        verifyOwnerIdentity,
+        assessPull,
+        projectSignedDockerDelta,
+        projectSignedActionsDelta,
+        qualificationForHead,
+      },
     });
   } catch (error) {
     const incident = await reportStaleRecoveryIncident(
@@ -1656,6 +1754,7 @@ async function processPull(
       number,
       assessment.pull.head?.sha,
       error,
+      assessment.ecosystem,
     );
     throw new Error('Dependency fallback incident #' + incident.incident + ': ' + error.message, {
       cause: error,

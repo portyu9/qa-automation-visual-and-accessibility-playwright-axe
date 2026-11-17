@@ -7,7 +7,7 @@ import {
   runStaleDockerFallback,
   reportStaleRecoveryIncident,
 } from './dependency-stale-fallback.mjs';
-import { projectSignedDockerDelta } from './dependency-governance.mjs';
+import { projectSignedDockerDelta, projectSignedActionsDelta } from './dependency-governance.mjs';
 
 const config = JSON.parse(readFileSync('.github/dependency-governance.json', 'utf8'));
 const head = 'b'.repeat(40),
@@ -116,13 +116,21 @@ test('ACK does not count as a regenerated signed head; identity and timestamps m
 function fixture({
   mainText = advanced,
   sourceText = after,
+  sourceBaseText = before,
   assessmentReason = 'PR is not rebased directly on the current base branch head',
   files = null,
+  ecosystem = 'docker',
+  filePath = 'Dockerfile',
+  metadataEntries = metadata,
 } = {}) {
   const source = {
     number: 41,
     state: 'open',
-    head: { sha: head, ref: 'dependabot/docker/routine' },
+    head: {
+      sha: head,
+      ref:
+        ecosystem === 'docker' ? 'dependabot/docker/routine' : 'dependabot/github_actions/routine',
+    },
     base: { ref: 'main' },
   };
   const assessment = {
@@ -133,12 +141,12 @@ function fixture({
       reasons: [assessmentReason],
       commit: { parents: [{ sha: originalSha }] },
     },
-    metadataAssessment: { eligible: true, metadata },
-    ecosystem: 'docker',
-    files: files || [{ filename: 'Dockerfile', status: 'modified', sha: sha(sourceText) }],
+    metadataAssessment: { eligible: true, metadata: metadataEntries },
+    ecosystem,
+    files: files || [{ filename: filePath, status: 'modified', sha: sha(sourceText) }],
   };
   const filesByRef = new Map([
-    [originalSha, before],
+    [originalSha, sourceBaseText],
     [head, sourceText],
     [mainSha, mainText],
   ]);
@@ -154,7 +162,11 @@ function fixture({
     main: mainSha,
     now,
   };
-  const recoveryBranch = 'dependency-recovery/docker-pr-41-' + head.slice(0, 12);
+  const recoveryBranch =
+    'dependency-recovery/' +
+    (ecosystem === 'github-actions' ? 'actions-pr-' : 'docker-pr-') +
+    '41-' +
+    head.slice(0, 12);
   const api = {
     owner: 'o',
     root: 'https://api.github.com/repos/o/r',
@@ -164,7 +176,7 @@ function fixture({
         return {
           status: 'ahead',
           ahead_by: 1,
-          files: [{ filename: 'Dockerfile', status: 'modified' }],
+          files: [{ filename: filePath, status: 'modified' }],
         };
       if (path === '/git/ref/heads/main') return { object: { sha: state.main } };
       if (path.startsWith('/git/ref/heads/')) {
@@ -172,7 +184,7 @@ function fixture({
         if (!state.refs.has(ref)) throw new Error('GitHub API GET failed (404): Not Found');
         return { object: { sha: state.refs.get(ref) } };
       }
-      if (path.startsWith('/contents/Dockerfile?ref=')) {
+      if (path.startsWith('/contents/' + filePath + '?ref=')) {
         const value = filesByRef.get(path.split('ref=')[1]);
         if (value === undefined) throw new Error('fixture unknown blob ' + path);
         return {
@@ -192,7 +204,7 @@ function fixture({
     async paginate(path) {
       if (path.startsWith('/pulls?')) return state.prs;
       if (path.startsWith('/pulls/') && path.endsWith('/files'))
-        return [{ filename: 'Dockerfile', status: 'modified' }];
+        return [{ filename: filePath, status: 'modified' }];
       if (path.startsWith('/actions/runs?'))
         return state.status === 'verified'
           ? config.requiredWorkflows.map((g, i) => ({
@@ -318,6 +330,7 @@ function fixture({
     verifyOwnerIdentity: async () => {},
     assessPull: async () => ({ ...assessment, baseSha: state.main }),
     projectSignedDockerDelta,
+    projectSignedActionsDelta,
     qualificationForHead: async () => ({
       allSuccess: state.status === 'passed',
       qualifications: [],
@@ -368,7 +381,7 @@ test('publisher fails closed on incorrect signed blob, non-Docker changes, and s
   const extra = fixture({
     files: [{ filename: 'package.json', status: 'modified', sha: sha(after) }],
   });
-  await assert.rejects(() => run(extra), /not a single Dockerfile-only/);
+  await assert.rejects(() => run(extra), /not one eligible signed dependency-only pin/);
   const conflict = fixture({ mainText: before.replace('24.22.2', '24.22.4') });
   await assert.rejects(() => run(conflict), /conflicts/);
   const unsigned = fixture({ assessmentReason: 'signature invalid' });
@@ -496,4 +509,162 @@ test('blocked incident is idempotently tracked and never treated as a green stat
     new Error('injected provider failure'),
   );
   assert.equal(second.incident, 101);
+});
+
+const actionPath = '.github/workflows/docs.yml';
+const actionBefore = [
+  'name: docs',
+  'jobs:',
+  '  verify:',
+  '    steps:',
+  '      - uses: actions/checkout@' + 'a'.repeat(40) + ' # v7.0.0',
+  '      - run: echo original',
+  '',
+].join('\n');
+const actionSigned = actionBefore.replace(
+  'actions/checkout@' + 'a'.repeat(40) + ' # v7.0.0',
+  'actions/checkout@' + 'b'.repeat(40) + ' # v7.0.1',
+);
+const actionAccepted = actionBefore.replace('echo original', 'echo separately-accepted');
+const actionMetadata = [
+  {
+    name: 'actions/checkout',
+    version: '7.0.1',
+    updateType: 'version-update:semver-patch',
+  },
+];
+function actionsFixture(overrides = {}) {
+  return fixture({
+    ecosystem: 'github-actions',
+    filePath: actionPath,
+    mainText: actionAccepted,
+    sourceText: actionSigned,
+    sourceBaseText: actionBefore,
+    metadataEntries: actionMetadata,
+    ...overrides,
+  });
+}
+function projectAction(overrides = {}) {
+  return projectSignedActionsDelta({
+    workflowPath: actionPath,
+    sourceBaseText: actionBefore,
+    signedHeadText: actionSigned,
+    currentMainText: actionAccepted,
+    signedMetadata: actionMetadata,
+    manualReviewPaths: config.manualReviewPaths,
+    ...overrides,
+  });
+}
+test('signed Actions SHA-pin projector preserves every unrelated accepted workflow line', () => {
+  const result = projectAction();
+  assert.equal(result.state, 'projected');
+  assert.match(result.content, /echo separately-accepted/);
+  assert.match(result.content, new RegExp('checkout@' + 'b'.repeat(40) + ' # v7\\.0\\.1'));
+  assert.equal(result.content.split('\n').length, actionBefore.split('\n').length);
+  assert.equal(projectAction({ currentMainText: actionSigned }).state, 'already-accepted');
+});
+test('signed Actions projection fails closed on control-plane paths, metadata mismatch and other mutations', () => {
+  assert.throws(
+    () => projectAction({ workflowPath: '.github/workflows/security.yml' }),
+    /excludes control-plane/,
+  );
+  assert.throws(() => projectAction({ workflowPath: '../Dockerfile' }), /excludes control-plane/);
+  assert.throws(
+    () =>
+      projectAction({
+        signedMetadata: [
+          { name: 'not-the-action', version: '7.0.1', updateType: 'version-update:semver-patch' },
+        ],
+      }),
+    /action identity/,
+  );
+  assert.throws(
+    () => projectAction({ signedMetadata: [...actionMetadata, ...actionMetadata] }),
+    /exactly one/,
+  );
+  assert.throws(
+    () => projectAction({ signedHeadText: actionSigned.replace('echo original', 'echo injected') }),
+    /exactly one signed SHA pin/,
+  );
+  assert.throws(
+    () =>
+      projectAction({
+        signedHeadText: actionSigned.replace('actions/checkout@', 'actions/setup-node@'),
+      }),
+    /action identity/,
+  );
+  assert.throws(
+    () => projectAction({ signedHeadText: actionBefore }),
+    /exactly one signed SHA pin/,
+  );
+  assert.throws(
+    () => projectAction({ currentMainText: actionBefore.replace('a'.repeat(40), 'c'.repeat(40)) }),
+    /refuse conflict/,
+  );
+  assert.throws(
+    () =>
+      projectAction({
+        currentMainText: actionAccepted.replace('echo separately-accepted', 'echo\raccepted'),
+      }),
+    /requires exact UTF-8 LF/,
+  );
+});
+test('Actions recovery independently creates, deduplicates, qualifies, merges and verifies exact source', async () => {
+  const f = actionsFixture();
+  const created = await run(f);
+  assert.equal(created.state, 'recovery-pr-created');
+  assert.match(f.state.prs[0].head.ref, /dependency-recovery\/actions-pr-/);
+  assert.match(f.state.prs[0].body, /dependency-stale-actions-recovery:v1/);
+  assert.match(f.state.prs[0].body, /Verified recovery file: \.github\/workflows\/docs\.yml/);
+  assert.match(f.state.blobText, /echo separately-accepted/);
+  assert.deepEqual(
+    f.state.ownerPatches.map((p) => p.body.state),
+    ['closed', 'open'],
+  );
+  assert.equal((await run(f)).state, 'qualifying');
+  assert.equal(f.state.prs.length, 1, 'repeated wakes must reuse the exact recovery PR');
+  f.state.status = 'passed';
+  assert.equal((await run(f)).state, 'merged-awaiting-verification');
+  assert.equal(f.state.reviews.length, 1);
+  assert.equal((await run(f)).state, 'merged-awaiting-verification');
+  assert.equal(f.source.state, 'open', 'no premature close of original Dependabot PR');
+  f.state.status = 'verified';
+  assert.equal((await run(f)).state, 'verified');
+  assert.equal(f.source.state, 'closed');
+});
+test('Actions fallback preserves trusted source, refuses control-plane workflow and modified recovery PR', async () => {
+  const staleControl = actionsFixture({ filePath: '.github/workflows/security.yml' });
+  await assert.rejects(() => run(staleControl), /not one eligible signed dependency-only pin/);
+  const wrongSource = actionsFixture({
+    files: [{ filename: actionPath, status: 'modified', sha: 'c'.repeat(40) }],
+  });
+  await assert.rejects(() => run(wrongSource), /blob identity/);
+  const untouched = actionsFixture({ mainText: actionSigned });
+  assert.equal((await run(untouched)).state, 'already-accepted');
+  assert.equal(untouched.state.refs.size, 0);
+  const f = actionsFixture();
+  await run(f);
+  f.filesByRef.set(f.state.prs[0].head.sha, actionBefore);
+  await assert.rejects(() => run(f), /recovery PR bytes differ/);
+});
+test('Actions recovery resumes orphaned branch and records typed incidents without duplicate issues', async () => {
+  const f = actionsFixture();
+  await run(f);
+  f.state.prs.splice(0);
+  assert.equal((await run(f)).state, 'recovery-pr-created');
+  assert.equal(f.state.prs.length, 1);
+  const incident = await reportStaleRecoveryIncident(
+    f.api,
+    41,
+    head,
+    new Error('injected actions timeout'),
+    'github-actions',
+  );
+  assert.equal(incident.incident, 101);
+  assert.match(f.state.issues[0].body, /dependency-stale-actions-incident/);
+  assert.equal(
+    (await reportStaleRecoveryIncident(f.api, 41, head, new Error('same source'), 'github-actions'))
+      .incident,
+    101,
+  );
 });
