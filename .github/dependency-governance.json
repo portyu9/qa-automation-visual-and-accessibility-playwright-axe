@@ -69,5 +69,6 @@
   },
   "ownerApprovalRequired": true,
   "ownerApprovalLogin": "portyu9",
-  "ownerApprovalUserId": 35150859
+  "ownerApprovalUserId": 35150859,
+  "nativeRefreshEscalationMinutes": 30
 }
