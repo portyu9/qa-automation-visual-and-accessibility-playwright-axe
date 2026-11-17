@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { TextDecoder } from 'node:util';
 
 const SHA = /^[0-9a-f]{40}$/;
 const MARKER = '<!-- dependency-stale-docker-recovery:v1:';
