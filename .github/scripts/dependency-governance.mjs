@@ -6,6 +6,10 @@ import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import governanceConfig from '../dependency-governance.json' with { type: 'json' };
+import {
+  runStaleDockerFallback,
+  reportStaleRecoveryIncident,
+} from './dependency-stale-fallback.mjs';
 
 const DEP_SECTIONS = [
   'dependencies',
@@ -351,6 +355,87 @@ export function validateDockerSemanticChange(baseText, headText, metadata, allow
   return { eligible: reasons.length === 0, reasons: unique(reasons), changes };
 }
 
+/**
+ * Project one signed Dependabot Docker image update onto independently
+ * advanced main without copying unrelated bot-branch data.
+ * Caller must separately verify the signed bot commit and bind every file to
+ * an exact SHA. This pure function NEVER publishes, approves, or merges.
+ */
+export function projectSignedDockerDelta({
+  sourceBaseText,
+  signedHeadText,
+  currentMainText,
+  signedMetadata,
+  allowedImages,
+}) {
+  const texts = [sourceBaseText, signedHeadText, currentMainText];
+  if (texts.some((value) => typeof value !== 'string' || value.includes('\r'))) {
+    throw new Error('Docker salvage requires exact UTF-8 LF source/base/main text');
+  }
+  if (!Array.isArray(signedMetadata) || !Array.isArray(allowedImages)) {
+    throw new Error('Docker salvage requires verified signed metadata and an image allowlist');
+  }
+
+  const original = sourceBaseText.split('\n');
+  const signed = signedHeadText.split('\n');
+  const live = currentMainText.split('\n');
+  const semantic = validateDockerSemanticChange(
+    sourceBaseText,
+    signedHeadText,
+    signedMetadata,
+    allowedImages,
+  );
+  if (!semantic.eligible) {
+    throw new Error('signed Docker delta is ineligible: ' + semantic.reasons.join('; '));
+  }
+  const changed = original.flatMap((line, index) => (line === signed[index] ? [] : [index]));
+  // This initial projector allows ONE image update. Grouped Docker upgrades
+  // require a separate explicitly reviewed multi-line contract.
+  if (changed.length !== 1) {
+    throw new Error('Docker salvage requires exactly one signed image-line update');
+  }
+  const proposed = parseDockerImageReference(signed[changed[0]]);
+  const exactMetadata =
+    proposed &&
+    signedMetadata.filter(
+      (item) =>
+        (item.name === proposed.image || item.name === proposed.image.split('/').at(-1)) &&
+        item.version === proposed.tag,
+    );
+  if (!exactMetadata || exactMetadata.length !== 1) {
+    throw new Error('signed dependency metadata must exactly match one proposed Docker image tag');
+  }
+  if (live.length !== original.length) {
+    throw new Error('Dockerfile line structure changed on main; refuse unsafe projection');
+  }
+  const index = changed[0];
+  if (live[index] === signed[index]) {
+    return {
+      state: 'already-accepted',
+      content: currentMainText,
+      index,
+      changes: semantic.changes,
+    };
+  }
+  if (live[index] !== original[index]) {
+    throw new Error('current main changed the same Docker image; signed proposal conflicts');
+  }
+
+  const projected = live.slice();
+  projected[index] = signed[index];
+  const content = projected.join('\n');
+  const rechecked = validateDockerSemanticChange(
+    currentMainText,
+    content,
+    signedMetadata,
+    allowedImages,
+  );
+  if (!rechecked.eligible) {
+    throw new Error('projected Docker update is ineligible: ' + rechecked.reasons.join('; '));
+  }
+  return { state: 'projected', content, index, changes: rechecked.changes };
+}
+
 function parseActionUseLine(line) {
   const match = line.match(
     /^(\s*-?\s*uses:\s*)([^\s@]+)@([a-f0-9]{40}|[a-f0-9]{64})(\s+#\s*v?(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*)$/i,
@@ -553,6 +638,8 @@ export function validateConfig(config) {
     '.github/dependency-governance.json',
     '.github/scripts/dependency-governance.mjs',
     '.github/scripts/dependency-governance.selfcheck.mjs',
+    '.github/scripts/dependency-stale-fallback.mjs',
+    '.github/scripts/dependency-stale-fallback.selfcheck.mjs',
     '.github/scripts/validate_codeql_sarif.py',
     '.github/scripts/validate_codeql_sarif_selfcheck.py',
     '.github/scripts/validate_security_stack.py',
@@ -997,7 +1084,7 @@ async function validateChangeSemantics({ api, pull, files, ecosystem, metadata, 
   };
 }
 
-async function qualificationForHead(api, pull, config) {
+export async function qualificationForHead(api, pull, config) {
   const runs = await api.paginate(
     `/actions/runs?head_sha=${encodeURIComponent(pull.head.sha)}&event=pull_request`,
     'workflow_runs',
@@ -1263,14 +1350,26 @@ export async function requestDependabotRefresh(
   const markerFor = (command) =>
     `${OWNER_REFRESH_MARKER}${headSha}:${assessment.baseSha}:${command} -->`;
   const comments = await ownerApi.paginate(`/issues/${number}/comments`);
+  // Keep the native lease bound to signed HEAD when main advances.
   const matching = (command) =>
-    comments.filter(
-      (comment) =>
-        String(comment.body || '').includes(markerFor(command)) &&
+    comments.filter((comment) => {
+      const prefix = `${OWNER_REFRESH_MARKER}${headSha}:`;
+      const suffix = `:${command} -->`;
+      const validMarker = String(comment.body || '')
+        .split('\n')
+        .some(
+          (line) =>
+            line.startsWith(prefix) &&
+            line.endsWith(suffix) &&
+            /^[0-9a-f]{40}$/.test(line.slice(prefix.length, -suffix.length)),
+        );
+      return (
+        validMarker &&
         comment.user?.login === config.ownerApprovalLogin &&
         comment.user?.id === config.ownerApprovalUserId &&
-        comment.performed_via_github_app == null,
-    );
+        comment.performed_via_github_app == null
+      );
+    });
   const priorRebases = matching('rebase');
   const priorRecreates = matching('recreate');
   if (priorRebases.length > 1 || priorRecreates.length > 1) {
@@ -1306,7 +1405,7 @@ export async function requestDependabotRefresh(
   return true;
 }
 
-async function assessPull(api, number, config, { includeQualification = true } = {}) {
+export async function assessPull(api, number, config, { includeQualification = true } = {}) {
   const pull = await getPull(api, number);
   const baseSha = await getCurrentBaseSha(api, config.baseBranch);
   let files = [];
@@ -1541,15 +1640,53 @@ async function processPull(
   }
 
   await requestDependabotRefresh(ownerApi, assessment, config);
+  let fallbackResult;
+  try {
+    fallbackResult = await runStaleDockerFallback({
+      api,
+      ownerApi,
+      assessment,
+      config,
+      allowMerge,
+      helpers: { verifyOwnerIdentity, assessPull, projectSignedDockerDelta, qualificationForHead },
+    });
+  } catch (error) {
+    const incident = await reportStaleRecoveryIncident(
+      api,
+      number,
+      assessment.pull.head?.sha,
+      error,
+    );
+    throw new Error('Dependency fallback incident #' + incident.incident + ': ' + error.message, {
+      cause: error,
+    });
+  }
+  if (['verified', 'already-accepted'].includes(fallbackResult?.state)) {
+    return {
+      skipped: false,
+      assessment,
+      merged: fallbackResult.state === 'verified',
+      fallbackResult,
+    };
+  }
   const mergeAttempt = await maybeMerge(api, ownerApi, assessment, config, allowMerge);
   const finalAssessment = mergeAttempt.refreshed || assessment;
-  const body = renderComment({
-    assessment: finalAssessment,
-    config,
-    merged: mergeAttempt.merged,
-    mergeDeferred: mergeAttempt.mergeDeferred === true,
-    dispatches: mergeAttempt.dispatches || [],
-  });
+  const body =
+    renderComment({
+      assessment: finalAssessment,
+      config,
+      merged: mergeAttempt.merged,
+      mergeDeferred: mergeAttempt.mergeDeferred === true,
+      dispatches: mergeAttempt.dispatches || [],
+    }) +
+    (fallbackResult && fallbackResult.state !== 'not-stale-only'
+      ? '\n\n### Independent Docker recovery\n\n' +
+        'State: **' +
+        fallbackResult.state +
+        '**. ' +
+        (fallbackResult.number ? 'Recovery PR #' + fallbackResult.number + '. ' : '') +
+        'No merge bypass; all recovered heads require separate exact-head qualification.\n'
+      : '');
   await upsertComment(api, number, config.statusCommentMarker, body);
 
   const failedDispatches = (mergeAttempt.dispatches || []).filter(
