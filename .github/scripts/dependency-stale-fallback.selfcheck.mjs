@@ -282,7 +282,7 @@ function fixture({
       }
       throw new Error('fixture patch ' + path);
     },
-    async put(path, body) {
+    async put(path) {
       if (!path.endsWith('/merge')) throw new Error('unexpected mutation');
       const pr = state.prs[0];
       pr.merged = true;
@@ -396,7 +396,6 @@ test('fresh PR only merges after all exact-head gates and owner approval; postme
 test('interrupted branch creation resumes only from exact verified Docker-only tree', async () => {
   const f = fixture();
   await run(f);
-  const recoveryBranch = [...f.state.refs.keys()][0];
   f.state.prs.splice(0); // interruption after ref publication, before PR API readback
   const resumed = await run(f);
   assert.equal(resumed.state, 'recovery-pr-created');
