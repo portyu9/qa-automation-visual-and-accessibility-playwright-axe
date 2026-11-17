@@ -14,7 +14,10 @@
   "maxChangedFiles": 25,
   "maxPullRequestAgeDays": 14,
   "maxPaginationPages": 10,
-  "manualReviewLabels": ["manual-review", "do-not-merge"],
+  "manualReviewLabels": [
+    "manual-review",
+    "do-not-merge"
+  ],
   "requiredWorkflows": [
     {
       "workflow": "ci",
@@ -52,19 +55,31 @@
     ".github/scripts/codeql-autofix-wrapper.selfcheck.mjs",
     ".github/scripts/validate_codeql_sarif.py",
     ".github/scripts/validate_codeql_sarif_selfcheck.py",
-    ".github/scripts/validate_security_stack.py"
+    ".github/scripts/validate_security_stack.py",
+    ".github/scripts/dependency-stale-fallback.mjs",
+    ".github/scripts/dependency-stale-fallback.selfcheck.mjs"
   ],
   "ecosystems": {
     "npm": {
-      "files": ["package.json", "package-lock.json"]
+      "files": [
+        "package.json",
+        "package-lock.json"
+      ]
     },
     "docker": {
-      "files": ["Dockerfile"],
-      "allowedImages": ["node"]
+      "files": [
+        "Dockerfile"
+      ],
+      "allowedImages": [
+        "node"
+      ]
     },
     "github-actions": {
       "workflowPrefix": ".github/workflows/",
-      "extensions": [".yml", ".yaml"]
+      "extensions": [
+        ".yml",
+        ".yaml"
+      ]
     }
   },
   "ownerApprovalRequired": true,
