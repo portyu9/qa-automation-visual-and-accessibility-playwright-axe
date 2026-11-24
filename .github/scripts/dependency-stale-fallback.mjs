@@ -259,7 +259,9 @@ async function reconcileOwnerCiWake({
     (item) =>
       isOwner(item.user) &&
       item.performed_via_github_app == null &&
-      String(item.body || '').split('\n').includes(marker),
+      String(item.body || '')
+        .split('\n')
+        .includes(marker),
   );
   if (checkpoints.length > 1) fail('ambiguous owner CI wake checkpoints');
   const transitions = events.filter((item) => ['closed', 'reopened'].includes(item.event));
@@ -360,7 +362,9 @@ async function reconcileOwnerCiWake({
         (item) =>
           isOwner(item.user) &&
           item.performed_via_github_app == null &&
-          String(item.body || '').split('\n').includes(marker),
+          String(item.body || '')
+            .split('\n')
+            .includes(marker),
       ).length !== 1
     )
       return { state: 'wake-checkpoint-visibility-pending' };
