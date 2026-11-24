@@ -211,7 +211,15 @@ function ownerWakeMarker(number, sourceHead, recoveryHead) {
     !SHA.test(recoveryHead)
   )
     fail('owner CI wake identity is not canonical');
-  return '<!-- dependency-owner-ci-wake:v1:' + number + ':' + sourceHead + ':' + recoveryHead + ' -->';
+  return (
+    '<!-- dependency-owner-ci-wake:v1:' +
+    number +
+    ':' +
+    sourceHead +
+    ':' +
+    recoveryHead +
+    ' -->'
+  );
 }
 
 /**
