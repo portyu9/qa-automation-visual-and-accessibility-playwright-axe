@@ -21,6 +21,7 @@ import {
   validateNpmSemanticChange,
   validateProvenance,
   validateSignedMetadata,
+  verifyScheduledOwnerReadiness,
   workflowIdentityMatches,
 } from './dependency-governance.mjs';
 
@@ -615,6 +616,66 @@ test('manual dispatch PR input accepts only positive safe integers', () => {
   assert.equal(eventPullNumber({ inputs: { 'pr-number': '41' } }, 'workflow_dispatch'), 41);
   for (const value of ['0', '-1', '1.5', 'abc', '9007199254740992'])
     assert.throws(() => parsePositiveInteger(value, 'pr-number'));
+});
+
+test('scheduled zero-bot sweeps fail unless the exact configured owner authenticates', async () => {
+  let checked = 0;
+  const owner = {
+    async get(path) {
+      assert.equal(path, 'https://api.github.com/user');
+      checked += 1;
+      return { login: config.ownerApprovalLogin, id: config.ownerApprovalUserId };
+    },
+  };
+  assert.deepEqual(
+    await verifyScheduledOwnerReadiness({ eventName: 'schedule', ownerApi: owner, config }),
+    { checked: true, identity: 'verified' },
+  );
+  assert.equal(checked, 1);
+  await assert.rejects(
+    () => verifyScheduledOwnerReadiness({ eventName: 'schedule', ownerApi: null, config }),
+    /DEPENDABOT_OWNER_TOKEN is required/,
+  );
+  await assert.rejects(
+    () =>
+      verifyScheduledOwnerReadiness({
+        eventName: 'schedule',
+        ownerApi: {
+          get: async () => {
+            throw new Error('expired owner token');
+          },
+        },
+        config,
+      }),
+    /expired owner token/,
+  );
+  await assert.rejects(
+    () =>
+      verifyScheduledOwnerReadiness({
+        eventName: 'schedule',
+        ownerApi: {
+          get: async () => ({
+            login: config.ownerApprovalLogin,
+            id: config.ownerApprovalUserId + 1,
+          }),
+        },
+        config,
+      }),
+    /configured repository owner identity/,
+  );
+});
+
+test('scheduled preflight never changes pull_request, push, or workflow_run behavior', async () => {
+  const poison = {
+    get() {
+      throw new Error('unexpected owner preflight on non-schedule event');
+    },
+  };
+  for (const eventName of ['push', 'pull_request', 'pull_request_target', 'workflow_run']) {
+    assert.deepEqual(await verifyScheduledOwnerReadiness({ eventName, ownerApi: poison, config }), {
+      checked: false,
+    });
+  }
 });
 
 test('scheduled reconciliation isolates per-PR failures and reports all outcomes', async () => {
