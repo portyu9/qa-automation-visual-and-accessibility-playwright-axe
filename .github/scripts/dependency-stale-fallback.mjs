@@ -508,13 +508,10 @@ async function postMergeProof(api, pr, config, source, now, filePath = 'Dockerfi
     const run = eligible[0];
     // Only uniformly cancelled exact-merge attempts lack a code verdict.
     // Never duplicate an active run or replace a failure/older green attempt.
-    if (
-      !run ||
-      eligible.every(
-        (candidate) =>
-          candidate.status === 'completed' && candidate.conclusion === 'cancelled',
-      )
-    ) {
+    const allCancelled = eligible.every(
+      ({ status, conclusion }) => status === 'completed' && conclusion === 'cancelled',
+    );
+    if (!run || allCancelled) {
       retryable.push(gate);
     }
     if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
