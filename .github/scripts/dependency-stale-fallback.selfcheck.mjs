@@ -527,8 +527,8 @@ test('post-merge retry rejects advanced main and respects a durable interrupted 
   const retried = await run(f, { now: f.state.now });
   assert.equal(retried.retry, 'missing-gates-dispatched');
   assert.equal(f.state.retryComments.length, 2);
-  const previouslyDispatched = f.state.apiPosts.filter(
-    (item) => item.path.endsWith('/dispatches'),
+  const previouslyDispatched = f.state.apiPosts.filter((item) =>
+    item.path.endsWith('/dispatches'),
   ).length;
 
   const newer = 'f'.repeat(40);
