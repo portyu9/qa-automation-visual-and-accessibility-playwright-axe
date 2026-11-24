@@ -162,6 +162,7 @@ function fixture({
     retryComments: [],
     dispatchFailOnce: false,
     postMergeRuns: null,
+    omitDetailedMerged: false,
     reviews: [],
     merge: null,
     status: 'missing',
@@ -203,12 +204,25 @@ function fixture({
         const ref = path.split('/').at(-1);
         return { tree: { sha: 'e'.repeat(40) }, parents: state.parents?.get(ref) || [] };
       }
-      if (path.startsWith('/pulls/'))
-        return state.prs.find((pr) => pr.number === Number(path.split('/')[2]));
+      if (path.startsWith('/pulls/')) {
+        const pr = state.prs.find((item) => item.number === Number(path.split('/')[2]));
+        if (state.omitDetailedMerged && pr) {
+          const incomplete = { ...pr };
+          delete incomplete.merged;
+          return incomplete;
+        }
+        return pr;
+      }
       throw new Error('fixture GET ' + path);
     },
     async paginate(path) {
-      if (path.startsWith('/pulls?')) return state.prs;
+      // GitHub REST LIST does not expose merged even if merged_at is present.
+      if (path.startsWith('/pulls?'))
+        return state.prs.map((pr) => {
+          const listed = { ...pr };
+          delete listed.merged;
+          return listed;
+        });
       if (path.startsWith('/pulls/') && path.endsWith('/files'))
         return [{ filename: filePath, status: 'modified' }];
       if (path.startsWith('/actions/runs?'))
@@ -541,6 +555,32 @@ test('post-merge retry rejects advanced main and respects a durable interrupted 
     f.state.apiPosts.filter((item) => item.path.endsWith('/dispatches')).length,
     previouslyDispatched,
   );
+  assert.equal(f.source.state, 'open');
+});
+
+test('real GitHub LIST omits merged: canonical detail keeps signed source open until exact main verified', async () => {
+  const f = fixture();
+  await run(f);
+  f.state.status = 'passed';
+  await run(f);
+  const listed = await f.api.paginate('/pulls?state=all&head=o%3Aignored');
+  assert.equal(Object.hasOwn(listed[0], 'merged'), false);
+  assert.equal(listed[0].merged_at, '2026-11-17T03:00:00Z');
+  const pending = await run(f);
+  assert.equal(pending.state, 'merged-awaiting-verification');
+  assert.equal(f.source.state, 'open');
+  f.state.status = 'verified';
+  assert.equal((await run(f)).state, 'verified');
+  assert.equal(f.source.state, 'closed');
+});
+
+test('missing merged boolean on canonical recovery detail fails closed', async () => {
+  const f = fixture();
+  await run(f);
+  f.state.status = 'passed';
+  await run(f);
+  f.state.omitDetailedMerged = true;
+  await assert.rejects(() => run(f), /merged state is unverified/);
   assert.equal(f.source.state, 'open');
 });
 

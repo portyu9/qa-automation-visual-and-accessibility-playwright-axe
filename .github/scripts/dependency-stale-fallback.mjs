@@ -125,8 +125,37 @@ async function recoveryPull(api, branch) {
   const pulls = await api.paginate(
     '/pulls?state=all&head=' + encodeURIComponent(api.owner + ':' + branch),
   );
-  if (pulls.length > 1) fail('multiple recovery PRs share the deterministic branch');
-  return pulls[0] || null;
+  if (!Array.isArray(pulls) || pulls.length > 1) fail('ambiguous recovery PR list');
+  const listed = pulls[0];
+  if (!listed) return null;
+  if (!Number.isSafeInteger(listed.number) || listed.number < 1)
+    fail('invalid listed recovery PR number');
+  // LIST /pulls omits merged even for merged PRs. An absent boolean must
+  // never turn a merged recovery into the unverified already-accepted shortcut.
+  const detail = await api.get('/pulls/' + listed.number);
+  if (
+    detail?.number !== listed.number ||
+    detail.state !== listed.state ||
+    detail.head?.ref !== branch ||
+    detail.head?.sha !== listed.head?.sha ||
+    detail.base?.ref !== listed.base?.ref ||
+    typeof detail.merged !== 'boolean'
+  ) {
+    fail('recovery PR list/detail identity or merged state is unverified');
+  }
+  if (
+    detail.merged === true &&
+    (detail.state !== 'closed' ||
+      !SHA.test(detail.merge_commit_sha || '') ||
+      !detail.merged_at ||
+      listed.merged_at !== detail.merged_at ||
+      listed.merge_commit_sha !== detail.merge_commit_sha)
+  ) {
+    fail('recovery PR merged state conflicts with canonical PR details');
+  }
+  if (detail.merged === false && (detail.merged_at || listed.merged_at))
+    fail('recovery PR has ambiguous unmerged state');
+  return detail;
 }
 async function validateUnopenedBranch(api, base, revision, projected, filePath = 'Dockerfile') {
   if (!SHA.test(base) || !SHA.test(revision))
