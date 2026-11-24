@@ -1853,7 +1853,11 @@ async function main() {
     );
     console.log(
       JSON.stringify(
-        { reconciled: reconciliation.results.length, failed: reconciliation.failures, ownerReadiness },
+        {
+          reconciled: reconciliation.results.length,
+          failed: reconciliation.failures,
+          ownerReadiness,
+        },
         null,
         2,
       ),
