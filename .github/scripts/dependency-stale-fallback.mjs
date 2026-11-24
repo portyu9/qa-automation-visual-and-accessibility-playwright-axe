@@ -374,6 +374,63 @@ async function reconcileOwnerCiWake({
   return { state: 'recovery-pr-created' };
 }
 
+/**
+ * Resume an interrupted merge-to-dispatch handoff without fabricating a
+ * passed exact-main verification. Persist a bot-authored retry lease first.
+ */
+async function replayMissingPostMergeDispatches(api, pr, config, missing, now) {
+  const mergedAt = exactTime(pr.merged_at, now);
+  if (mergedAt === null) fail('post-merge verification has an invalid merge timestamp');
+  if (now.getTime() - mergedAt < 5 * 60_000) {
+    return { state: 'merged-awaiting-verification', retry: 'merge-event-propagating' };
+  }
+  if ((await baseSha(api, config.baseBranch)) !== pr.merge_commit_sha) {
+    return { state: 'merged-awaiting-verification', retry: 'accepted-main-advanced' };
+  }
+  const marker =
+    '<!-- dependency-postmerge-verification-replay:v1:' +
+    pr.number +
+    ':' +
+    pr.merge_commit_sha +
+    ' -->';
+  const comments = await api.paginate('/issues/' + pr.number + '/comments');
+  if (!Array.isArray(comments)) fail('missing post-merge retry history');
+  const receipts = comments.filter(
+    (item) =>
+      item.user?.login === 'github-actions[bot]' &&
+      item.user?.id === 41898282 &&
+      String(item.body || '')
+        .split('\n')
+        .includes(marker),
+  );
+  const receiptTimes = receipts.map((item) => exactTime(item.created_at, now));
+  if (receiptTimes.includes(null)) fail('unverifiable post-merge retry timestamp');
+  if (receiptTimes.length > 0 && now.getTime() - Math.max(...receiptTimes) < 10 * 60_000) {
+    return { state: 'merged-awaiting-verification', retry: 'durable-retry-lease-active' };
+  }
+  if (receipts.length >= 8) fail('post-merge verification retry budget exhausted');
+  await api.post('/issues/' + pr.number + '/comments', {
+    body:
+      marker +
+      '\nReplaying only missing exact-merge verification workflows for ' +
+      pr.merge_commit_sha +
+      '. Absent gates: ' +
+      missing.map((gate) => gate.gate).join(', ') +
+      '. This receipt is a retry lease, never CI evidence or merge approval.',
+  });
+  const dispatched = [];
+  for (const gate of missing) {
+    if ((await baseSha(api, config.baseBranch)) !== pr.merge_commit_sha) {
+      return { state: 'merged-awaiting-verification', retry: 'accepted-main-race', dispatched };
+    }
+    await api.post('/actions/workflows/' + encodeURIComponent(gate.file) + '/dispatches', {
+      ref: config.baseBranch,
+    });
+    dispatched.push(gate.gate);
+  }
+  return { state: 'merged-awaiting-verification', retry: 'missing-gates-dispatched', dispatched };
+}
+
 async function postMergeProof(api, pr, config, source, now, filePath = 'Dockerfile') {
   if (pr.merged !== true || !SHA.test(pr.merge_commit_sha || '') || !pr.merged_at)
     fail('recovery PR is not provably merged');
@@ -406,6 +463,7 @@ async function postMergeProof(api, pr, config, source, now, filePath = 'Dockerfi
     'workflow_runs',
   );
   const proof = [];
+  const missing = [];
   for (const gate of config.requiredWorkflows) {
     const eligible = runs
       .filter(
@@ -419,6 +477,7 @@ async function postMergeProof(api, pr, config, source, now, filePath = 'Dockerfi
       )
       .sort((a, b) => b.id - a.id);
     const run = eligible[0];
+    if (!run) missing.push(gate);
     if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
       proof.push({ gate: gate.gate, state: 'pending' });
       continue;
@@ -440,6 +499,10 @@ async function postMergeProof(api, pr, config, source, now, filePath = 'Dockerfi
       config.nativeRefreshEscalationMinutes * 4 * 60000
     )
       fail('post-merge exact-commit gates did not all succeed within deadline');
+    if (missing.length > 0) {
+      const retry = await replayMissingPostMergeDispatches(api, pr, config, missing, now);
+      return { ...retry, proof };
+    }
     return { state: 'merged-awaiting-verification', proof };
   }
   return { state: 'verified', proof };
