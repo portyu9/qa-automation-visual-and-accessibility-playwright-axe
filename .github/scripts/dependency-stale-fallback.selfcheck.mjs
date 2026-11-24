@@ -518,7 +518,10 @@ test('conclusively cancelled exact-merge gates replay once under a durable lease
   }));
   const first = await run(f);
   assert.equal(first.retry, 'eligible-gates-dispatched');
-  assert.deepEqual(first.dispatched, config.requiredWorkflows.map((gate) => gate.gate));
+  assert.deepEqual(
+    first.dispatched,
+    config.requiredWorkflows.map((gate) => gate.gate),
+  );
   assert.equal(f.state.retryComments.length, 1);
   assert.equal(f.source.state, 'open');
   const before = f.state.apiPosts.filter((post) => post.path.endsWith('/dispatches')).length;
