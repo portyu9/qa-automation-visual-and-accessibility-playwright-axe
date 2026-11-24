@@ -203,6 +203,177 @@ async function validateRecoveryBranch(
   return { state: 'current', head: pr.head.sha };
 }
 
+function ownerWakeMarker(number, sourceHead, recoveryHead) {
+  if (
+    !Number.isSafeInteger(number) ||
+    number < 1 ||
+    !SHA.test(sourceHead) ||
+    !SHA.test(recoveryHead)
+  )
+    fail('owner CI wake identity is not canonical');
+  return `<!-- dependency-owner-ci-wake:v1:${number}:${sourceHead}:${recoveryHead} -->`;
+}
+
+/**
+ * A GITHUB_TOKEN-created recovery PR needs a distinct owner close/reopen to
+ * emit pull_request CI. Resume only an incomplete authenticated handoff,
+ * never an intentional closure, untrusted actor, or changed source/head/main.
+ */
+async function reconcileOwnerCiWake({
+  api,
+  ownerApi,
+  pr,
+  number,
+  head,
+  branch,
+  revision,
+  mainSha,
+  projected,
+  config,
+  filePath,
+  ecosystem,
+  now,
+}) {
+  if (
+    !pr ||
+    !Number.isSafeInteger(pr.number) ||
+    !same(revision, pr.head?.sha) ||
+    pr.head?.ref !== branch ||
+    pr.base?.ref !== config.baseBranch ||
+    pr.merged === true ||
+    pr.user?.login !== 'github-actions[bot]' ||
+    pr.user?.id !== 41898282
+  )
+    fail('owner CI wake source PR, branch, or exact recovery head drifted');
+
+  const marker = ownerWakeMarker(number, head, revision);
+  const [comments, events] = await Promise.all([
+    ownerApi.paginate('/issues/' + pr.number + '/comments'),
+    api.paginate('/issues/' + pr.number + '/events'),
+  ]);
+  if (!Array.isArray(comments) || !Array.isArray(events))
+    fail('unverifiable owner CI wake history');
+  const isOwner = (user) =>
+    user?.login === config.ownerApprovalLogin && user?.id === config.ownerApprovalUserId;
+  const checkpoints = comments.filter(
+    (item) =>
+      isOwner(item.user) &&
+      item.performed_via_github_app == null &&
+      String(item.body || '')
+        .split('\n')
+        .includes(marker),
+  );
+  if (checkpoints.length > 1) fail('ambiguous owner CI wake checkpoints');
+  const transitions = events.filter((item) => ['closed', 'reopened'].includes(item.event));
+  const closes = transitions.filter((item) => item.event === 'closed');
+  const reopens = transitions.filter((item) => item.event === 'reopened');
+  if (
+    transitions.length > 2 ||
+    closes.length > 1 ||
+    reopens.length > 1 ||
+    transitions.some((item) => !isOwner(item.actor))
+  )
+    fail('ambiguous or non-owner recovery PR close/reopen events');
+
+  if (
+    pr.state === 'open' &&
+    closes.length === 1 &&
+    reopens.length === 1 &&
+    exactTime(closes[0].created_at, now) !== null &&
+    exactTime(reopens[0].created_at, now) !== null &&
+    Date.parse(closes[0].created_at) <= Date.parse(reopens[0].created_at)
+  ) {
+    return null;
+  }
+  if (reopens.length > 0) fail('recovery PR had a previous wake or deliberate closure');
+  if (pr.state === 'open' && closes.length === 1) return { state: 'wake-event-visibility-pending' };
+  if (pr.state !== 'open' && pr.state !== 'closed') fail('unexpected recovery PR wake state');
+
+  const checkpoint = checkpoints[0];
+  if (pr.state === 'closed') {
+    const checkpointAt = exactTime(checkpoint?.created_at, now);
+    const closedAt = exactTime(closes[0]?.created_at, now);
+    const recordedCloseAt = exactTime(pr.closed_at, now);
+    if (
+      !checkpoint ||
+      closes.length !== 1 ||
+      pr.merged !== false ||
+      checkpointAt === null ||
+      closedAt === null ||
+      recordedCloseAt === null ||
+      closedAt < checkpointAt ||
+      closedAt - checkpointAt > 120_000 ||
+      Math.abs(recordedCloseAt - closedAt) > 2_000
+    )
+      fail('recovery PR closure is not a proven incomplete owner CI wake');
+  } else if (closes.length > 0) {
+    fail('owner CI wake PR state and event history disagree');
+  }
+
+  const branchProof = await validateRecoveryBranch(
+    api,
+    branch,
+    pr,
+    number,
+    head,
+    projected,
+    mainSha,
+    config,
+    ecosystem,
+    filePath,
+  );
+  if (branchProof.state !== 'current') return { state: 'wake-main-advanced-retry' };
+  const [source, accepted, fresh, ref] = await Promise.all([
+    api.get('/pulls/' + number),
+    baseSha(api, config.baseBranch),
+    api.get('/pulls/' + pr.number),
+    maybeRef(api, branch),
+  ]);
+  if (
+    source.state !== 'open' ||
+    source.head?.sha !== head ||
+    accepted !== mainSha ||
+    fresh.state !== pr.state ||
+    fresh.head?.sha !== revision ||
+    fresh.base?.ref !== config.baseBranch ||
+    !same(ref, revision)
+  )
+    return { state: 'wake-subject-advanced-retry' };
+
+  if (pr.state === 'closed') {
+    await ownerApi.patch('/pulls/' + pr.number, { state: 'open' });
+    return { state: 'recovery-pr-reopened' };
+  }
+  if (!checkpoint) {
+    await ownerApi.post('/issues/' + pr.number + '/comments', {
+      body:
+        marker +
+        '\nOwner-authorized CI wake handoff for exact signed source #' +
+        number +
+        ' at ' +
+        head +
+        ' and verified recovery commit ' +
+        revision +
+        '. This marker permits only one close/reopen wake, never a merge or status bypass.',
+    });
+    const visible = await ownerApi.paginate('/issues/' + pr.number + '/comments');
+    if (
+      visible.filter(
+        (item) =>
+          isOwner(item.user) &&
+          item.performed_via_github_app == null &&
+          String(item.body || '')
+            .split('\n')
+            .includes(marker),
+      ).length !== 1
+    )
+      return { state: 'wake-checkpoint-visibility-pending' };
+  }
+  await ownerApi.patch('/pulls/' + pr.number, { state: 'closed' });
+  await ownerApi.patch('/pulls/' + pr.number, { state: 'open' });
+  return { state: 'recovery-pr-created' };
+}
+
 async function postMergeProof(api, pr, config, source, now, filePath = 'Dockerfile') {
   if (pr.merged !== true || !SHA.test(pr.merge_commit_sha || '') || !pr.merged_at)
     fail('recovery PR is not provably merged');
@@ -508,17 +679,47 @@ export async function runStaleDockerFallback({
       ].join('\n\n'),
     });
     if (!Number.isSafeInteger(pr?.number)) fail('recovery PR publication has no verifiable number');
-    // GITHUB_TOKEN-authored PRs do not trigger pull_request workflows. A distinct
-    // owner-authenticated reopen emits the required PR event without rewriting history.
-    await ownerApi.patch('/pulls/' + pr.number, { state: 'closed' });
-    await ownerApi.patch('/pulls/' + pr.number, { state: 'open' });
-    return { state: 'recovery-pr-created', number: pr.number, head: revision };
+    const wake = await reconcileOwnerCiWake({
+      api,
+      ownerApi,
+      pr,
+      number,
+      head,
+      branch: name,
+      revision,
+      mainSha: current.baseSha,
+      projected,
+      config,
+      filePath,
+      ecosystem,
+      now,
+    });
+    return {
+      ...(wake || { state: 'recovery-pr-created' }),
+      number: pr.number,
+      head: revision,
+    };
   }
   pr = await api.get('/pulls/' + pr.number);
-  if (pr.state === 'closed' && pr.merged !== true)
-    fail('recovery PR was closed without a verified merge');
   if (pr.merged === true) fail('merged recovery PR does not contain verified signed source update');
-  if (pr.state !== 'open') fail('unexpected recovery PR state');
+  if (pr.state !== 'open' && pr.state !== 'closed') fail('unexpected recovery PR state');
+  const wake = await reconcileOwnerCiWake({
+    api,
+    ownerApi,
+    pr,
+    number,
+    head,
+    branch: name,
+    revision,
+    mainSha: current.baseSha,
+    projected,
+    config,
+    filePath,
+    ecosystem,
+    now,
+  });
+  if (wake) return { ...wake, number: pr.number, head: revision };
+  if (pr.state !== 'open') fail('unproven owner CI wake left recovery PR closed');
   if ((await baseSha(api, config.baseBranch)) !== current.baseSha)
     return { state: 'main-advanced-retry' };
   let validity = await validateRecoveryBranch(

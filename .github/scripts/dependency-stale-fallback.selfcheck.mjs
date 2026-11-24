@@ -154,6 +154,9 @@ function fixture({
     refs: new Map(),
     prs: [],
     comments: [...comments],
+    wakeComments: [],
+    wakeEvents: [],
+    wakeFail: null,
     ownerPatches: [],
     apiPosts: [],
     reviews: [],
@@ -228,6 +231,7 @@ function fixture({
           },
         ];
       }
+      if (path === '/issues/73/events') return state.wakeEvents;
       if (path.includes('/reviews')) return state.reviews;
       if (path === '/issues?state=open')
         return (state.issues || []).filter((issue) => issue.state !== 'closed');
@@ -311,18 +315,46 @@ function fixture({
   const ownerApi = {
     async paginate(path) {
       if (path.includes('/reviews')) return state.reviews;
+      if (path === '/issues/73/comments') return state.wakeComments;
       if (path.includes('/comments')) return state.comments;
       throw new Error('owner paginate ' + path);
     },
     async patch(path, body) {
+      if (body.state === 'open' && state.wakeFail === 'after-close') {
+        state.wakeFail = null;
+        throw new Error('injected interruption after owner close');
+      }
       state.ownerPatches.push({ path, body });
-      state.prs[0].state = body.state;
-      return state.prs[0];
+      const pr = state.prs[0];
+      pr.state = body.state;
+      if (body.state === 'closed') {
+        pr.closed_at = '2026-11-17T03:59:59Z';
+        state.wakeEvents.push({ event: 'closed', actor: owner, created_at: pr.closed_at });
+      } else if (body.state === 'open') {
+        pr.closed_at = null;
+        state.wakeEvents.push({
+          event: 'reopened',
+          actor: owner,
+          created_at: '2026-11-17T04:00:00Z',
+        });
+      }
+      return pr;
     },
     async post(path, body) {
       if (path.includes('/reviews'))
         state.reviews.push({ user: owner, state: 'APPROVED', commit_id: body.commit_id });
-      if (path.includes('/comments')) state.comments.push({ body: body.body, user: owner });
+      if (path === '/issues/73/comments') {
+        state.wakeComments.push({
+          id: 300,
+          user: owner,
+          created_at: '2026-11-17T03:59:58Z',
+          body: body.body,
+        });
+        if (state.wakeFail === 'after-checkpoint') {
+          state.wakeFail = null;
+          throw new Error('injected interruption after owner checkpoint');
+        }
+      } else if (path.includes('/comments')) state.comments.push({ body: body.body, user: owner });
       return {};
     },
   };
@@ -409,7 +441,9 @@ test('fresh PR only merges after all exact-head gates and owner approval; postme
 test('interrupted branch creation resumes only from exact verified Docker-only tree', async () => {
   const f = fixture();
   await run(f);
-  f.state.prs.splice(0); // interruption after ref publication, before PR API readback
+  f.state.prs.splice(0);
+  f.state.wakeComments.length = 0;
+  f.state.wakeEvents.length = 0; // interruption after ref publication, before PR API readback
   const resumed = await run(f);
   assert.equal(resumed.state, 'recovery-pr-created');
   assert.equal(f.state.refs.size, 1);
@@ -418,6 +452,8 @@ test('interrupted branch creation resumes only from exact verified Docker-only t
   await run(tampered);
   const revision = tampered.state.refs.values().next().value;
   tampered.state.prs.splice(0);
+  tampered.state.wakeComments.length = 0;
+  tampered.state.wakeEvents.length = 0;
   tampered.filesByRef.set(revision, before);
   await assert.rejects(
     () => run(tampered),
@@ -430,6 +466,8 @@ test('main advancing after an orphaned branch safely reprojects, preserves accep
   await run(f);
   const old = f.state.refs.values().next().value;
   f.state.prs.splice(0);
+  f.state.wakeComments.length = 0;
+  f.state.wakeEvents.length = 0;
   f.state.main = 'f'.repeat(40);
   const newer = advanced.replace('accepted-change', 'newly-accepted-pin');
   f.filesByRef.set(f.state.main, newer);
@@ -509,6 +547,72 @@ test('blocked incident is idempotently tracked and never treated as a green stat
     new Error('injected provider failure'),
   );
   assert.equal(second.incident, 101);
+});
+
+test('an interrupted owner close resumes the same immutable recovery head exactly once', async () => {
+  const f = fixture();
+  f.state.wakeFail = 'after-close';
+  await assert.rejects(() => run(f), /injected interruption after owner close/);
+  assert.equal(f.state.prs[0].state, 'closed');
+  const recoveryHead = f.state.prs[0].head.sha;
+  assert.equal((await run(f)).state, 'recovery-pr-reopened');
+  assert.equal(f.state.prs[0].head.sha, recoveryHead);
+  assert.equal(f.state.prs[0].state, 'open');
+  assert.equal(f.state.prs.length, 1);
+  assert.deepEqual(
+    f.state.wakeEvents.map((event) => event.event),
+    ['closed', 'reopened'],
+  );
+  assert.equal(f.state.wakeComments.length, 1);
+  assert.equal((await run(f)).state, 'qualifying');
+  assert.equal(f.state.ownerPatches.length, 2);
+});
+
+test('owner checkpoint survives a crash before close without duplicate wake publication', async () => {
+  const f = fixture();
+  f.state.wakeFail = 'after-checkpoint';
+  await assert.rejects(() => run(f), /injected interruption after owner checkpoint/);
+  assert.equal(f.state.prs[0].state, 'open');
+  assert.equal((await run(f)).state, 'recovery-pr-created');
+  assert.equal(f.state.prs.length, 1);
+  assert.equal(f.state.wakeComments.length, 1);
+});
+
+test('forged owner checkpoint or close actor never authorizes a recovery PR reopen', async () => {
+  const f = fixture();
+  f.state.wakeFail = 'after-close';
+  await assert.rejects(() => run(f), /injected interruption after owner close/);
+  f.state.wakeComments[0].user = { login: 'attacker', id: 17 };
+  await assert.rejects(() => run(f), /not a proven incomplete owner CI wake/);
+  f.state.wakeComments[0].user = owner;
+  f.state.wakeEvents[0].actor = { login: 'attacker', id: 17 };
+  await assert.rejects(() => run(f), /non-owner recovery PR close\/reopen events/);
+  assert.equal(f.state.prs[0].state, 'closed');
+});
+
+test('an intentional second close never replays a previous authenticated owner wake', async () => {
+  const f = fixture();
+  await run(f);
+  f.state.prs[0].state = 'closed';
+  f.state.prs[0].closed_at = '2026-11-17T04:00:00Z';
+  f.state.wakeEvents.push({
+    event: 'closed',
+    actor: owner,
+    created_at: '2026-11-17T04:00:00Z',
+  });
+  await assert.rejects(() => run(f), /ambiguous or non-owner recovery PR close\/reopen events/);
+  assert.equal(f.state.prs[0].state, 'closed');
+});
+
+test('accepted main advance blocks replay of a stranded owner wake', async () => {
+  const f = fixture();
+  f.state.wakeFail = 'after-close';
+  await assert.rejects(() => run(f), /injected interruption after owner close/);
+  f.state.main = 'f'.repeat(40);
+  f.filesByRef.set(f.state.main, advanced);
+  assert.equal((await run(f)).state, 'wake-main-advanced-retry');
+  assert.equal(f.state.prs[0].state, 'closed');
+  assert.equal(f.state.ownerPatches.length, 1);
 });
 
 const actionPath = '.github/workflows/docs.yml';
@@ -651,6 +755,8 @@ test('Actions recovery resumes orphaned branch and records typed incidents witho
   const f = actionsFixture();
   await run(f);
   f.state.prs.splice(0);
+  f.state.wakeComments.length = 0;
+  f.state.wakeEvents.length = 0;
   assert.equal((await run(f)).state, 'recovery-pr-created');
   assert.equal(f.state.prs.length, 1);
   const incident = await reportStaleRecoveryIncident(
