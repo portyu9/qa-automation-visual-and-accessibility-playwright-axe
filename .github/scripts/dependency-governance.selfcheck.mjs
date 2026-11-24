@@ -672,10 +672,9 @@ test('scheduled preflight never changes pull_request, push, or workflow_run beha
     },
   };
   for (const eventName of ['push', 'pull_request', 'pull_request_target', 'workflow_run']) {
-    assert.deepEqual(
-      await verifyScheduledOwnerReadiness({ eventName, ownerApi: poison, config }),
-      { checked: false },
-    );
+    assert.deepEqual(await verifyScheduledOwnerReadiness({ eventName, ownerApi: poison, config }), {
+      checked: false,
+    });
   }
 });
 
