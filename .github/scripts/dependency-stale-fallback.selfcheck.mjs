@@ -483,7 +483,7 @@ test('interrupted post-merge dispatch retries absent gates without accepting an 
   assert.equal(f.source.state, 'open');
 
   const rescued = await run(f);
-  assert.equal(rescued.retry, 'missing-gates-dispatched');
+  assert.equal(rescued.retry, 'eligible-gates-dispatched');
   assert.deepEqual(
     rescued.dispatched,
     config.requiredWorkflows.map((gate) => gate.gate),
@@ -499,6 +499,88 @@ test('interrupted post-merge dispatch retries absent gates without accepting an 
   f.state.status = 'verified';
   assert.equal((await run(f)).state, 'verified');
   assert.equal(f.source.state, 'closed');
+});
+
+test('conclusively cancelled exact-merge gates replay once under a durable lease', async () => {
+  const f = fixture();
+  await run(f);
+  f.state.status = 'passed';
+  await run(f);
+  f.state.postMergeRuns = config.requiredWorkflows.map((gate, index) => ({
+    id: index + 1,
+    name: gate.workflow,
+    path: '.github/workflows/' + gate.file,
+    head_sha: f.state.merge,
+    event: 'workflow_dispatch',
+    created_at: '2026-11-17T03:10:00Z',
+    status: 'completed',
+    conclusion: 'cancelled',
+  }));
+  const first = await run(f);
+  assert.equal(first.retry, 'eligible-gates-dispatched');
+  assert.deepEqual(
+    first.dispatched,
+    config.requiredWorkflows.map((gate) => gate.gate),
+  );
+  assert.equal(f.state.retryComments.length, 1);
+  assert.equal(f.source.state, 'open');
+  const before = f.state.apiPosts.filter((post) => post.path.endsWith('/dispatches')).length;
+  assert.equal((await run(f)).retry, 'durable-retry-lease-active');
+  assert.equal(
+    f.state.apiPosts.filter((post) => post.path.endsWith('/dispatches')).length,
+    before,
+  );
+  f.state.status = 'verified';
+  f.state.postMergeRuns = null;
+  assert.equal((await run(f)).state, 'verified');
+  assert.equal(f.source.state, 'closed', 'only actual exact-main success closes the source');
+});
+
+test('failed, active, and mixed cancelled histories never get blind retries', async () => {
+  const f = fixture();
+  await run(f);
+  f.state.status = 'passed';
+  await run(f);
+  const gate = config.requiredWorkflows[0];
+  const observed = (id, status, conclusion) => ({
+    id,
+    name: gate.workflow,
+    path: '.github/workflows/' + gate.file,
+    head_sha: f.state.merge,
+    event: 'workflow_dispatch',
+    created_at: '2026-11-17T03:10:00Z',
+    status,
+    conclusion,
+  });
+  const otherGates = config.requiredWorkflows.slice(1).map((entry, index) => ({
+    id: index + 2,
+    name: entry.workflow,
+    path: '.github/workflows/' + entry.file,
+    head_sha: f.state.merge,
+    event: 'workflow_dispatch',
+    created_at: '2026-11-17T03:10:00Z',
+    status: 'completed',
+    conclusion: 'success',
+  }));
+  const baseline = f.state.apiPosts.filter((item) => item.path.endsWith('/dispatches')).length;
+  for (const history of [
+    [observed(99, 'completed', 'failure')],
+    [observed(99, 'in_progress', null)],
+    [observed(100, 'completed', 'cancelled'), observed(99, 'completed', 'failure')],
+    [observed(100, 'completed', 'cancelled'), observed(99, 'in_progress', null)],
+    [observed(100, 'completed', 'cancelled'), observed(99, 'completed', 'success')],
+  ]) {
+    f.state.postMergeRuns = [...history, ...otherGates];
+    const result = await run(f);
+    assert.equal(result.state, 'merged-awaiting-verification');
+    assert.equal(result.retry, undefined);
+    assert.equal(
+      f.state.apiPosts.filter((item) => item.path.endsWith('/dispatches')).length,
+      baseline,
+    );
+    assert.equal(f.state.retryComments.length, 0);
+    assert.equal(f.source.state, 'open');
+  }
 });
 
 test('post-merge retry skips existing in-progress workflow dispatches', async () => {
@@ -520,7 +602,7 @@ test('post-merge retry skips existing in-progress workflow dispatches', async ()
     },
   ];
   const result = await run(f);
-  assert.equal(result.retry, 'missing-gates-dispatched');
+  assert.equal(result.retry, 'eligible-gates-dispatched');
   assert.equal(result.dispatched.length, config.requiredWorkflows.length - 1);
   assert.ok(!result.dispatched.includes(existing.gate));
   assert.equal(f.source.state, 'open');
@@ -539,7 +621,7 @@ test('post-merge retry rejects advanced main and respects a durable interrupted 
 
   f.state.now = new Date('2026-11-17T04:11:00Z');
   const retried = await run(f, { now: f.state.now });
-  assert.equal(retried.retry, 'missing-gates-dispatched');
+  assert.equal(retried.retry, 'eligible-gates-dispatched');
   assert.equal(f.state.retryComments.length, 2);
   const previouslyDispatched = f.state.apiPosts.filter((item) =>
     item.path.endsWith('/dispatches'),
