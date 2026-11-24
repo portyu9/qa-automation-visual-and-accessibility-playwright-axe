@@ -211,15 +211,7 @@ function ownerWakeMarker(number, sourceHead, recoveryHead) {
     !SHA.test(recoveryHead)
   )
     fail('owner CI wake identity is not canonical');
-  return (
-    '<!-- dependency-owner-ci-wake:v1:' +
-    number +
-    ':' +
-    sourceHead +
-    ':' +
-    recoveryHead +
-    ' -->'
-  );
+  return `<!-- dependency-owner-ci-wake:v1:${number}:${sourceHead}:${recoveryHead} -->`;
 }
 
 /**
@@ -292,8 +284,7 @@ async function reconcileOwnerCiWake({
     return null;
   }
   if (reopens.length > 0) fail('recovery PR had a previous wake or deliberate closure');
-  if (pr.state === 'open' && closes.length === 1)
-    return { state: 'wake-event-visibility-pending' };
+  if (pr.state === 'open' && closes.length === 1) return { state: 'wake-event-visibility-pending' };
   if (pr.state !== 'open' && pr.state !== 'closed') fail('unexpected recovery PR wake state');
 
   const checkpoint = checkpoints[0];
