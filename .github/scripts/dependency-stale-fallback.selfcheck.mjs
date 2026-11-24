@@ -523,10 +523,7 @@ test('conclusively cancelled exact-merge gates replay once under a durable lease
   assert.equal(f.source.state, 'open');
   const before = f.state.apiPosts.filter((post) => post.path.endsWith('/dispatches')).length;
   assert.equal((await run(f)).retry, 'durable-retry-lease-active');
-  assert.equal(
-    f.state.apiPosts.filter((post) => post.path.endsWith('/dispatches')).length,
-    before,
-  );
+  assert.equal(f.state.apiPosts.filter((post) => post.path.endsWith('/dispatches')).length, before);
   f.state.status = 'verified';
   f.state.postMergeRuns = null;
   assert.equal((await run(f)).state, 'verified');
