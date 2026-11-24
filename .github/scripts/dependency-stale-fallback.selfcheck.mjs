@@ -207,7 +207,8 @@ function fixture({
       if (path.startsWith('/pulls/')) {
         const pr = state.prs.find((item) => item.number === Number(path.split('/')[2]));
         if (state.omitDetailedMerged && pr) {
-          const { merged, ...incomplete } = pr;
+          const incomplete = { ...pr };
+          delete incomplete.merged;
           return incomplete;
         }
         return pr;
@@ -216,7 +217,12 @@ function fixture({
     },
     async paginate(path) {
       // GitHub REST LIST does not expose merged even if merged_at is present.
-      if (path.startsWith('/pulls?')) return state.prs.map(({ merged, ...listed }) => listed);
+      if (path.startsWith('/pulls?'))
+        return state.prs.map((pr) => {
+          const listed = { ...pr };
+          delete listed.merged;
+          return listed;
+        });
       if (path.startsWith('/pulls/') && path.endsWith('/files'))
         return [{ filename: filePath, status: 'modified' }];
       if (path.startsWith('/actions/runs?'))
